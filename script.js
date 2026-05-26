@@ -1,520 +1,607 @@
-// Sistema de Solicitações de Compra com Login e Controle de Acesso
+// ==========================================================================
+// IMPORTAÇÕES DO FIREBASE (SDK Modular v10 via CDN)
+// ==========================================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { 
+  getFirestore, 
+  doc, 
+  getDoc, 
+  setDoc 
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-// Função utilitária global para prevenir XSS ao renderizar dados do usuário no DOM
+// Credenciais oficiais do projeto vinculadas ao projeto txr-banco
+const firebaseConfig = {
+  apiKey: "AIzaSyBJFdUEEBGSv96NDmfiCzN9KgUYgp0QK10",
+  authDomain: "txr-banco.firebaseapp.com",
+  projectId: "txr-banco",
+  storageBucket: "txr-banco.firebasestorage.app",
+  messagingSenderId: "246852170185",
+  appId: "1:246852170185:web:96e70238aa6ce4d951b818",
+  measurementId: "G-3H8K92SGS4"
+};
+
+// Inicializa instâncias do Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ==========================================================================
+// UTILITÁRIOS GERAIS
+// ==========================================================================
 function escapeHTML(str) {
-    if (!str) return '';
-    return String(str).replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        "'": '&#39;',
-        '"': '&quot;'
-    }[tag]));
+  if (!str) return "";
+  return String(str).replace(
+    /[&<>'"]/g,
+    (tag) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        '"': "&quot;",
+      })[tag],
+  );
 }
 
-// Dados da aplicação
-let dadosAplicacao = {
-    usuarios: [
+async function simularUploadArquivo(file) {
+  return new Promise((resolve) => {
+    if (file.size > 500000) {
+      resolve(`https://via.placeholder.com/150?text=${escapeHTML(file.name)}`);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.readAsDataURL(file);
+    }
+  });
+}
+
+// ==========================================================================
+// CAMADA DE SERVIÇO DE DADOS (INTEGRADO AO CLOUD FIRESTORE)
+// ==========================================================================
+class DatabaseService {
+  static async iniciarBancoFake() {
+    const adminExistente = await this.getUsuarios();
+    if (!adminExistente || adminExistente.length === 0) {
+      const usuariosPadrao = [
         {
-            id: 1, nome: "Administrador do Sistema", login: "admin", senha: "admin123",
-            perfil: "administrador",
-            permissoes: { novaSolicitacao: true, historico: true, compras: true, aprovacao: true, finalizacao: true, usuarios: true },
-            dataCadastro: new Date().toISOString()
+          id: 1,
+          nome: "Administrador",
+          login: "admin",
+          senha: "admin123",
+          perfil: "administrador",
+          permissoes: {
+            novaSolicitacao: true,
+            historico: true,
+            compras: true,
+            aprovacao: true,
+            finalizacao: true,
+            usuarios: true,
+          },
+          dataCadastro: new Date().toISOString(),
         },
         {
-            id: 2, nome: "João Silva", login: "joao", senha: "joao123",
-            perfil: "solicitante",
-            permissoes: { novaSolicitacao: true, historico: true, compras: false, aprovacao: false, finalizacao: false, usuarios: false },
-            dataCadastro: new Date().toISOString()
+          id: 2,
+          nome: "João Solicitante",
+          login: "joao",
+          senha: "joao123",
+          perfil: "solicitante",
+          permissoes: {
+            novaSolicitacao: true,
+            historico: true,
+            compras: false,
+            aprovacao: false,
+            finalizacao: false,
+            usuarios: false,
+          },
+          dataCadastro: new Date().toISOString(),
         },
         {
-            id: 3, nome: "Maria Santos", login: "maria", senha: "maria123",
-            perfil: "comprador",
-            permissoes: { novaSolicitacao: false, historico: true, compras: true, aprovacao: false, finalizacao: true, usuarios: false },
-            dataCadastro: new Date().toISOString()
+          id: 3,
+          nome: "Maria Compras",
+          login: "maria",
+          senha: "maria123",
+          perfil: "comprador",
+          permissoes: {
+            novaSolicitacao: false,
+            historico: true,
+            compras: true,
+            aprovacao: false,
+            finalizacao: true,
+            usuarios: false,
+          },
+          dataCadastro: new Date().toISOString(),
         },
         {
-            id: 4, nome: "Carlos Oliveira", login: "carlos", senha: "carlos123",
-            perfil: "gestor",
-            permissoes: { novaSolicitacao: false, historico: true, compras: false, aprovacao: true, finalizacao: false, usuarios: false },
-            dataCadastro: new Date().toISOString()
-        }
-    ],
-    solicitações: [],
-    próximoId: 1,
-    próximoProtocolo: 1000,
-    usuárioAtual: null
+          id: 4,
+          nome: "Carlos Gestor",
+          login: "carlos",
+          senha: "carlos123",
+          perfil: "gestor",
+          permissoes: {
+            novaSolicitacao: false,
+            historico: true,
+            compras: false,
+            aprovacao: true,
+            finalizacao: false,
+            usuarios: false,
+          },
+          dataCadastro: new Date().toISOString(),
+        },
+      ];
+      await this.salvarUsuarios(usuariosPadrao);
+    }
+    
+    // Força inicialização segura da lista de solicitações caso o documento não exista
+    try {
+      const docRef = doc(db, "sistema_compras", "solicitacoes");
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        await this.salvarSolicitacoes([]);
+      }
+    } catch (e) {
+      console.error("Erro ao inicializar nó de solicitações:", e);
+    }
+  }
+
+  static async getUsuarios() {
+    try {
+      const docRef = doc(db, "sistema_compras", "usuarios");
+      const docSnap = await getDoc(docRef);
+      return docSnap.exists() ? docSnap.data().lista : [];
+    } catch (error) {
+      console.error("Erro ao buscar usuários do Firestore:", error);
+      return [];
+    }
+  }
+
+  static async salvarUsuarios(usuarios) {
+    try {
+      await setDoc(doc(db, "sistema_compras", "usuarios"), { lista: usuarios });
+      return true;
+    } catch (error) {
+      console.error("Erro ao gravar usuários no Firestore:", error);
+      throw new Error("Erro na gravação remota de usuários.");
+    }
+  }
+
+  static async getSolicitacoes() {
+    try {
+      const docRef = doc(db, "sistema_compras", "solicitacoes");
+      const docSnap = await getDoc(docRef);
+      return docSnap.exists() ? docSnap.data().lista : [];
+    } catch (error) {
+      console.error("Erro ao buscar solicitações do Firestore:", error);
+      return [];
+    }
+  }
+
+  static async salvarSolicitacoes(solicitacoes) {
+    try {
+      await setDoc(doc(db, "sistema_compras", "solicitacoes"), { lista: solicitacoes });
+      return true;
+    } catch (error) {
+      console.error("Erro ao atualizar solicitações no Firestore:", error);
+      throw new Error("Falha ao sincronizar as solicitações com o servidor.");
+    }
+  }
+
+  static async getSessaoAtiva() {
+    return JSON.parse(localStorage.getItem("sys_sessao")) || null;
+  }
+
+  static async setSessaoAtiva(usuario) {
+    localStorage.setItem("sys_sessao", JSON.stringify(usuario));
+  }
+}
+
+// ==========================================================================
+// VARIÁVEIS DE ESTADO DA APLICAÇÃO FRONT-END
+// ==========================================================================
+const appState = {
+  usuarios: [],
+  solicitacoes: [],
+  usuarioAtual: null,
+  proximoProtocolo: 1000,
 };
 
 const perfisPermissoes = {
-    solicitante: { nome: "Solicitante" },
-    comprador: { nome: "Comprador" },
-    gestor: { nome: "Gestor" },
-    administrador: { nome: "Administrador" }
+  solicitante: { nome: "Solicitante" },
+  comprador: { nome: "Comprador" },
+  gestor: { nome: "Gestor" },
+  administrador: { nome: "Administrador" },
 };
 
-// Elementos DOM
-const elementos = {
-    telaLogin: document.getElementById('tela-login'),
-    sistemaPrincipal: document.getElementById('sistema-principal'),
-    formLogin: document.getElementById('form-login'),
-    loginUsername: document.getElementById('login-username'),
-    loginPassword: document.getElementById('login-password'),
-    usuarioLogado: document.getElementById('usuario-logado'),
-    perfilLogado: document.getElementById('perfil-logado'),
-    btnLogout: document.getElementById('btn-logout'),
-    btnConfig: document.getElementById('btn-config'),
-    telas: document.querySelectorAll('.tela'),
-    botoesNavegacao: document.querySelectorAll('.nav-btn'),
-    btnUsuarios: document.getElementById('btn-usuarios'),
-    formSolicitacao: document.getElementById('form-solicitacao'),
-    solicitanteInput: document.getElementById('solicitante'),
-    itensLista: document.getElementById('itens-lista'),
-    btnAdicionarItem: document.getElementById('btn-adicionar-item'),
-    btnEnviarSolicitacao: document.getElementById('btn-enviar-solicitacao'),
-    solicitacoesLista: document.querySelector('.solicitacoes-lista'),
-    filtroStatus: document.getElementById('filtro-status'),
-    filtroSetor: document.getElementById('filtro-setor'),
-    filtroSolicitante: document.getElementById('filtro-solicitante'),
-    formAdicionarOrcamento: document.getElementById('form-adicionar-orcamento'),
-    compradorInput: document.getElementById('comprador'),
-    solicitacoesOrcamento: document.querySelector('.solicitacoes-orcamento'),
-    anexosInput: document.getElementById('anexos-input'),
-    btnAdicionarAnexos: document.getElementById('btn-adicionar-anexos'),
-    previewAnexos: document.getElementById('preview-anexos'),
-    solicitacoesAprovacao: document.querySelector('.solicitacoes-aprovacao'),
-    solicitacoesFinalizacao: document.querySelector('.solicitacoes-finalizacao'),
-    telaUsuarios: document.getElementById('usuarios'),
-    usuariosGrid: document.querySelector('.usuarios-grid'),
-    formCadastrarUsuario: document.getElementById('form-cadastrar-usuario'),
-    btnNovoUsuario: document.getElementById('btn-novo-usuario'),
-    btnCancelarEdicao: document.getElementById('btn-cancelar-edicao'),
-    usuarioIdInput: document.getElementById('usuario-id'),
-    usuarioNomeInput: document.getElementById('usuario-nome'),
-    usuarioLoginInput: document.getElementById('usuario-login'),
-    usuarioSenhaInput: document.getElementById('usuario-senha'),
-    usuarioPerfilSelect: document.getElementById('usuario-perfil'),
-    modalConfig: document.getElementById('modal-config'),
-    formAlterarSenha: document.getElementById('form-alterar-senha'),
-    modalDetalhes: document.getElementById('modal-detalhes'),
-    modalAprovacao: document.getElementById('modal-aprovacao'),
-    modalFinalizacao: document.getElementById('modal-finalizacao'),
-    notificacoes: document.getElementById('notificacoes')
-};
+// ==========================================================================
+// INICIALIZAÇÃO DA INTERFACE E EVENTOS
+// ==========================================================================
+document.addEventListener("DOMContentLoaded", async function () {
+  await DatabaseService.iniciarBancoFake();
+  await carregarDadosIniciais();
 
-document.addEventListener('DOMContentLoaded', function() {
-    inicializarAplicacao();
-    carregarDadosLocalStorage();
-    verificarLogin();
+  configurarEventosGerais();
+  verificarSessao();
 });
 
-function inicializarAplicacao() {
-    elementos.formLogin.addEventListener('submit', fazerLogin);
-    elementos.btnLogout.addEventListener('click', fazerLogout);
-    elementos.btnConfig.addEventListener('click', () => { mostrarModalConfig(); });
-    
-    elementos.botoesNavegacao.forEach(botao => {
-        botao.addEventListener('click', function() {
-            const telaAlvo = this.getAttribute('data-tela');
-            alternarTela(telaAlvo);
-        });
-    });
-    
-    document.querySelectorAll('.btn-fechar-modal').forEach(botao => {
-        botao.addEventListener('click', function() {
-            this.closest('.modal').style.display = 'none';
-        });
-    });
-    
-    window.addEventListener('click', function(event) {
-        if (event.target.classList.contains('modal')) {
-            event.target.style.display = 'none';
-        }
-    });
-    
-    elementos.formSolicitacao.addEventListener('submit', enviarSolicitacao);
-    elementos.btnAdicionarItem.addEventListener('click', adicionarItem);
-    
-    elementos.filtroStatus.addEventListener('change', atualizarHistorico);
-    elementos.filtroSetor.addEventListener('change', atualizarHistorico);
-    elementos.filtroSolicitante.addEventListener('change', atualizarHistorico);
-    
-    elementos.formAdicionarOrcamento.addEventListener('submit', adicionarOrcamento);
-    elementos.btnAdicionarAnexos.addEventListener('click', () => elementos.anexosInput.click());
-    elementos.anexosInput.addEventListener('change', gerenciarAnexosOrcamento);
-    
-    elementos.formCadastrarUsuario.addEventListener('submit', salvarUsuario);
-    elementos.btnNovoUsuario.addEventListener('click', () => {
-        limparFormularioUsuario();
-        elementos.formCadastrarUsuario.scrollIntoView({ behavior: 'smooth' });
-    });
-    elementos.btnCancelarEdicao.addEventListener('click', limparFormularioUsuario);
-    elementos.formAlterarSenha.addEventListener('submit', alterarSenha);
-    
-    document.addEventListener('click', function(event) {
-        if (event.target.closest('.btn-ver-detalhes')) {
-            const id = parseInt(event.target.closest('.btn-ver-detalhes').getAttribute('data-id'));
-            mostrarDetalhesSolicitacao(id);
-        }
-        if (event.target.closest('.btn-orcamento')) {
-            const id = parseInt(event.target.closest('.btn-orcamento').getAttribute('data-id'));
-            prepararFormOrcamento(id);
-        }
-        if (event.target.closest('.btn-aprovar')) {
-            const id = parseInt(event.target.closest('.btn-aprovar').getAttribute('data-id'));
-            prepararModalAprovacao(id);
-        }
-        if (event.target.closest('.btn-finalizar')) {
-            const id = parseInt(event.target.closest('.btn-finalizar').getAttribute('data-id'));
-            prepararModalFinalizacao(id);
-        }
-        if (event.target.closest('.btn-editar-usuario')) {
-            const id = parseInt(event.target.closest('.btn-editar-usuario').getAttribute('data-id'));
-            editarUsuario(id);
-        }
-        if (event.target.closest('.btn-excluir-usuario')) {
-            const id = parseInt(event.target.closest('.btn-excluir-usuario').getAttribute('data-id'));
-            excluirUsuario(id);
-        }
-    });
-    
-    elementos.itensLista.addEventListener('click', function(event) {
-        if (event.target.closest('.btn-remover-item')) {
-            const itemId = event.target.closest('.btn-remover-item').getAttribute('data-item-id');
-            removerItem(itemId);
-        }
-        if (event.target.closest('.btn-adicionar-fotos')) {
-            const itemId = event.target.closest('.btn-adicionar-fotos').getAttribute('data-item-id');
-            document.querySelector(`.fotos-input[data-item-id="${itemId}"]`).click();
-        }
-    });
-    
-    document.addEventListener('change', function(event) {
-        if (event.target.classList.contains('fotos-input')) {
-            const itemId = event.target.getAttribute('data-item-id');
-            adicionarFotosItem(itemId, event.target.files);
-        }
-    });
-    
-    elementos.usuarioPerfilSelect.addEventListener('change', function() {
-        atualizarPermissoesPorPerfil(this.value);
-    });
+async function carregarDadosIniciais() {
+  appState.usuarios = await DatabaseService.getUsuarios();
+  appState.solicitacoes = await DatabaseService.getSolicitacoes();
+  appState.proximoProtocolo =
+    appState.solicitacoes.length > 0
+      ? Math.max(...appState.solicitacoes.map((s) => s.protocolo)) + 1
+      : 1000;
 }
 
-// Persistência de Dados com tratamento de erro
-function carregarDadosLocalStorage() {
-    try {
-        const dadosSalvos = localStorage.getItem('sistemaCompras');
-        if (dadosSalvos) {
-            const dados = JSON.parse(dadosSalvos);
-            dadosAplicacao.solicitações = dados.solicitações || [];
-            dadosAplicacao.próximoId = dados.próximoId || 1;
-            dadosAplicacao.próximoProtocolo = dados.próximoProtocolo || 1000;
-            dadosAplicacao.usuárioAtual = dados.usuárioAtual || null;
-        }
-        const usuariosSalvos = localStorage.getItem('sistemaComprasUsuarios');
-        if (usuariosSalvos) {
-            dadosAplicacao.usuarios = JSON.parse(usuariosSalvos);
-        }
-    } catch(e) {
-        console.error("Erro ao carregar dados do LocalStorage:", e);
-        mostrarNotificacao("Erro interno ao ler dados salvos no navegador.", "erro");
+function configurarEventosGerais() {
+  // Auth
+  document.getElementById("form-login").addEventListener("submit", fazerLogin);
+  document.getElementById("btn-logout").addEventListener("click", fazerLogout);
+
+  // Navegação
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.addEventListener("click", function () {
+      alternarTela(this.getAttribute("data-tela"));
+    });
+  });
+
+  // Modais
+  document
+    .getElementById("btn-config")
+    .addEventListener("click", mostrarModalConfig);
+  document.querySelectorAll(".btn-fechar-modal").forEach((btn) => {
+    btn.addEventListener("click", function () {
+      this.closest(".modal").style.display = "none";
+    });
+  });
+  window.addEventListener("click", (e) => {
+    if (e.target.classList.contains("modal")) e.target.style.display = "none";
+  });
+
+  // Formulário Solicitação
+  document
+    .getElementById("form-solicitacao")
+    .addEventListener("submit", enviarSolicitacao);
+  document
+    .getElementById("btn-adicionar-item")
+    .addEventListener("click", adicionarItemInterface);
+
+  // Filtros Histórico
+  ["filtro-status", "filtro-setor", "filtro-solicitante"].forEach((id) => {
+    document.getElementById(id).addEventListener("change", atualizarHistorico);
+  });
+
+  // Cotações
+  document
+    .getElementById("form-adicionar-orcamento")
+    .addEventListener("submit", adicionarOrcamento);
+  document
+    .getElementById("btn-adicionar-anexos")
+    .addEventListener("click", () =>
+      document.getElementById("anexos-input").click(),
+    );
+  document
+    .getElementById("anexos-input")
+    .addEventListener("change", gerenciarAnexosOrcamento);
+
+  // Usuários
+  document
+    .getElementById("form-cadastrar-usuario")
+    .addEventListener("submit", salvarUsuario);
+  document.getElementById("btn-novo-usuario").addEventListener("click", () => {
+    document.getElementById("form-cadastrar-usuario").reset();
+    document.getElementById("usuario-id").value = "";
+  });
+  document
+    .getElementById("btn-cancelar-edicao")
+    .addEventListener("click", () =>
+      document.getElementById("form-cadastrar-usuario").reset(),
+    );
+  document
+    .getElementById("usuario-perfil")
+    .addEventListener("change", function () {
+      atualizarPermissoesPorPerfil(this.value);
+    });
+
+  // Configurações e Senha
+  document
+    .getElementById("form-alterar-senha")
+    .addEventListener("submit", alterarSenha);
+
+  // Event Delegation para listas dinâmicas (Botoes de ação nos cards)
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest("button, .btn-remover-item");
+    if (!btn) return;
+
+    const idStr = btn.getAttribute("data-id");
+    const id = idStr ? parseInt(idStr) : null;
+
+    if (btn.classList.contains("btn-ver-detalhes"))
+      mostrarDetalhesSolicitacao(id);
+    if (btn.classList.contains("btn-orcamento")) prepararFormOrcamento(id);
+    if (btn.classList.contains("btn-aprovar")) prepararModalAprovacao(id);
+    if (btn.classList.contains("btn-finalizar")) prepararModalFinalizacao(id);
+    if (btn.classList.contains("btn-editar-usuario")) editarUsuario(id);
+    if (btn.classList.contains("btn-excluir-usuario")) excluirUsuario(id);
+    if (btn.classList.contains("btn-remover-item"))
+      removerItemInterface(btn.getAttribute("data-item-id"));
+    if (btn.classList.contains("btn-adicionar-fotos"))
+      document
+        .querySelector(
+          `.fotos-input[data-item-id="${btn.getAttribute("data-item-id")}"]`,
+        )
+        .click();
+  });
+
+  // Delegate de arquivos para fotos do item
+  document.addEventListener("change", async function (e) {
+    if (e.target.classList.contains("fotos-input")) {
+      const itemId = e.target.getAttribute("data-item-id");
+      await processarFotosItem(itemId, e.target.files);
     }
+  });
+
+  // Ações de Aprovação
+  document
+    .getElementById("btn-rejeitar")
+    ?.addEventListener("click", () => processarAprovacao("rejeitado"));
+  document
+    .getElementById("btn-aprovar-confirmar")
+    ?.addEventListener("click", () => processarAprovacao("compra"));
 }
 
-function salvarDadosLocalStorage() {
-    try {
-        const dadosParaSalvar = {
-            solicitações: dadosAplicacao.solicitações,
-            próximoId: dadosAplicacao.próximoId,
-            próximoProtocolo: dadosAplicacao.próximoProtocolo,
-            usuárioAtual: dadosAplicacao.usuárioAtual
-        };
-        localStorage.setItem('sistemaCompras', JSON.stringify(dadosParaSalvar));
-        localStorage.setItem('sistemaComprasUsuarios', JSON.stringify(dadosAplicacao.usuarios));
-    } catch(e) {
-        console.error("Erro ao salvar dados no LocalStorage:", e);
-        mostrarNotificacao("Seu navegador não permitiu salvar os dados localmente.", "aviso");
+// ==========================================================================
+// LÓGICA DE AUTENTICAÇÃO E SESSÃO
+// ==========================================================================
+async function verificarSessao() {
+  const sessao = await DatabaseService.getSessaoAtiva();
+  if (sessao) {
+    appState.usuarioAtual = sessao;
+    aplicarLoginNaInterface(sessao);
+  } else {
+    document.getElementById("tela-login").style.display = "flex";
+    document.getElementById("sistema-principal").style.display = "none";
+  }
+}
+
+async function fazerLogin(e) {
+  e.preventDefault();
+  const user = document.getElementById("login-username").value.trim();
+  const pass = document.getElementById("login-password").value.trim();
+
+  const usuarioBanco = appState.usuarios.find(
+    (u) => u.login === user && u.senha === pass,
+  );
+
+  if (usuarioBanco) {
+    appState.usuarioAtual = usuarioBanco;
+    await DatabaseService.setSessaoAtiva(usuarioBanco);
+    aplicarLoginNaInterface(usuarioBanco);
+    mostrarNotificacao(`Bem-vindo, ${usuarioBanco.nome}!`, "sucesso");
+  } else {
+    mostrarNotificacao("Usuário ou senha incorretos", "erro");
+  }
+}
+
+function aplicarLoginNaInterface(usuario) {
+  document.getElementById("usuario-logado").textContent = usuario.nome;
+  document.getElementById("perfil-logado").textContent =
+    perfisPermissoes[usuario.perfil].nome;
+  document.getElementById("solicitante").value = usuario.nome;
+  document.getElementById("comprador").value = usuario.nome;
+
+  configurarMenuPermissoes(usuario);
+
+  document.getElementById("tela-login").style.display = "none";
+  document.getElementById("sistema-principal").style.display = "flex";
+
+  const telasPrioridade = [
+    "novaSolicitacao",
+    "historico",
+    "compras",
+    "aprovacao",
+    "finalizacao",
+    "usuarios",
+  ];
+  let telaInicial = "historico";
+  for (const key of telasPrioridade) {
+    if (usuario.permissoes[key]) {
+      telaInicial = key === "novaSolicitacao" ? "nova-solicitacao" : key;
+      break;
     }
+  }
+
+  alternarTela(telaInicial);
+  atualizarFiltroSolicitantes();
 }
 
-function verificarLogin() {
-    if (dadosAplicacao.usuárioAtual) {
-        fazerLoginAutomatico(dadosAplicacao.usuárioAtual.login);
-    } else {
-        elementos.telaLogin.style.display = 'flex';
-        elementos.sistemaPrincipal.style.display = 'none';
-    }
+async function fazerLogout() {
+  appState.usuarioAtual = null;
+  await DatabaseService.setSessaoAtiva(null);
+  document.getElementById("form-login").reset();
+  document.getElementById("tela-login").style.display = "flex";
+  document.getElementById("sistema-principal").style.display = "none";
 }
 
-function fazerLogin(event) {
-    event.preventDefault();
-    const username = elementos.loginUsername.value.trim();
-    const password = elementos.loginPassword.value.trim();
-    
-    if (!username || !password) {
-        mostrarNotificacao('Preencha usuário e senha', 'erro');
-        return;
-    }
-    
-    const usuario = dadosAplicacao.usuarios.find(u => u.login === username && u.senha === password);
-    if (usuario) {
-        dadosAplicacao.usuárioAtual = usuario;
-        salvarDadosLocalStorage();
-        fazerLoginComum(usuario);
-        mostrarNotificacao(`Bem-vindo, ${usuario.nome}!`, 'sucesso');
-    } else {
-        mostrarNotificacao('Usuário ou senha incorretos', 'erro');
-    }
-}
+function configurarMenuPermissoes(usuario) {
+  const mapa = {
+    "nova-solicitacao": "novaSolicitacao",
+    historico: "historico",
+    compras: "compras",
+    aprovacao: "aprovacao",
+    finalizacao: "finalizacao",
+    usuarios: "usuarios",
+  };
 
-function fazerLoginAutomatico(username) {
-    const usuario = dadosAplicacao.usuarios.find(u => u.login === username);
-    if (usuario) {
-        dadosAplicacao.usuárioAtual = usuario;
-        fazerLoginComum(usuario);
-    }
-}
-
-function fazerLoginComum(usuario) {
-    elementos.usuarioLogado.textContent = usuario.nome;
-    elementos.perfilLogado.textContent = perfisPermissoes[usuario.perfil].nome;
-    elementos.solicitanteInput.value = usuario.nome;
-    elementos.compradorInput.value = usuario.nome;
-    
-    configurarPermissoesUsuario(usuario);
-    
-    elementos.telaLogin.style.display = 'none';
-    elementos.sistemaPrincipal.style.display = 'block';
-    
-    const mapPermissoesTelas = {
-        'novaSolicitacao': 'nova-solicitacao',
-        'historico': 'historico',
-        'compras': 'compras',
-        'aprovacao': 'aprovacao',
-        'finalizacao': 'finalizacao',
-        'usuarios': 'usuarios'
-    };
-    
-    let primeiraTela = 'historico';
-    for (const [key, isAtivo] of Object.entries(usuario.permissoes)) {
-        if (isAtivo && mapPermissoesTelas[key]) {
-            primeiraTela = mapPermissoesTelas[key];
-            break; 
-        }
-    }
-    
-    alternarTela(primeiraTela);
-    atualizarFiltroSolicitantes();
-    atualizarInterface();
-}
-
-function configurarPermissoesUsuario(usuario) {
-    const mapTelasPermissoes = {
-        'nova-solicitacao': 'novaSolicitacao',
-        'historico': 'historico',
-        'compras': 'compras',
-        'aprovacao': 'aprovacao',
-        'finalizacao': 'finalizacao',
-        'usuarios': 'usuarios'
-    };
-
-    elementos.botoesNavegacao.forEach(botao => {
-        const tela = botao.getAttribute('data-tela');
-        const permissaoKey = mapTelasPermissoes[tela];
-        
-        if (permissaoKey && usuario.permissoes[permissaoKey]) {
-            botao.style.display = 'flex';
-        } else {
-            botao.style.display = 'none';
-        }
-    });
-}
-
-function fazerLogout() {
-    dadosAplicacao.usuárioAtual = null;
-    salvarDadosLocalStorage();
-    elementos.formLogin.reset();
-    elementos.formSolicitacao.reset();
-    elementos.itensLista.innerHTML = '';
-    adicionarItem();
-    elementos.telaLogin.style.display = 'flex';
-    elementos.sistemaPrincipal.style.display = 'none';
-    mostrarNotificacao('Logout realizado com sucesso', 'info');
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    const permissaoReq = mapa[btn.getAttribute("data-tela")];
+    btn.style.display = usuario.permissoes[permissaoReq] ? "flex" : "none";
+  });
 }
 
 function alternarTela(nomeTela) {
-    if (!dadosAplicacao.usuárioAtual) return;
-    
-    const mapTelasPermissoes = {
-        'nova-solicitacao': 'novaSolicitacao',
-        'historico': 'historico',
-        'compras': 'compras',
-        'aprovacao': 'aprovacao',
-        'finalizacao': 'finalizacao',
-        'usuarios': 'usuarios'
-    };
-    
-    const permissaoKey = mapTelasPermissoes[nomeTela];
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-tela") === nomeTela);
+  });
+  document.querySelectorAll(".tela").forEach((tela) => {
+    tela.classList.toggle("tela-ativa", tela.id === nomeTela);
+  });
 
-    if (permissaoKey && !dadosAplicacao.usuárioAtual.permissoes[permissaoKey]) {
-        mostrarNotificacao('Você não tem permissão para acessar esta tela', 'erro');
-        return;
-    }
-    
-    elementos.botoesNavegacao.forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.getAttribute('data-tela') === nomeTela) {
-            btn.classList.add('active');
-        }
-    });
+  if (nomeTela !== "usuarios") {
+    const steps = document.querySelectorAll(".status-step");
+    steps.forEach((step) => step.classList.remove("active"));
+    if (nomeTela === "nova-solicitacao") steps[0].classList.add("active");
+    if (nomeTela === "compras") steps[1].classList.add("active");
+    if (nomeTela === "aprovacao") steps[2].classList.add("active");
+    if (nomeTela === "finalizacao") steps[3].classList.add("active");
+  }
 
-    elementos.telas.forEach(tela => {
-        tela.classList.toggle('tela-ativa', tela.id === nomeTela);
-    });
-    
-    if (nomeTela !== 'usuarios') {
-        const steps = document.querySelectorAll('.status-step');
-        steps.forEach(step => step.classList.remove('active'));
-        if(nomeTela === 'nova-solicitacao') steps[0].classList.add('active');
-        if(nomeTela === 'compras') steps[1].classList.add('active');
-        if(nomeTela === 'aprovacao') steps[2].classList.add('active');
-        if(nomeTela === 'finalizacao') steps[3].classList.add('active');
-    }
-    
-    if (nomeTela === 'usuarios') { atualizarListaUsuarios(); } else { atualizarInterface(); }
+  if (nomeTela === "usuarios") atualizarInterfaceUsuarios();
+  else atualizarInterfaceModulos();
 }
 
-let itemContador = 0;
-function adicionarItem() {
-    itemContador++;
-    const idUnico = itemContador;
-    
-    const div = document.createElement('div');
-    div.className = 'item-solicitacao';
-    div.setAttribute('data-item-id', idUnico);
-    div.innerHTML = `
-        <div class="form-group">
-            <label>Descrição do Item / Produto *</label>
-            <input type="text" class="item-descricao" required placeholder="Ex: Monitor Dell 24 polegadas">
-        </div>
-        <div class="form-group">
-            <label>Quantidade *</label>
-            <input type="number" class="item-quantidade" min="1" required placeholder="1">
-        </div>
-        <div class="btn-remover-item" data-item-id="${idUnico}" title="Remover este item">
-            <i class="fas fa-trash-alt"></i>
-        </div>
-        <div class="fotos-item-container">
-            <input type="file" class="fotos-input" data-item-id="${idUnico}" multiple accept="image/*" style="display:none;">
-            <button type="button" class="btn-secundario btn-sm btn-adicionar-fotos" data-item-id="${idUnico}">
-                <i class="fas fa-camera"></i> Anexar Imagens
-            </button>
-            <div class="fotos-preview" data-item-id="${idUnico}"></div>
+// ==========================================================================
+// MÓDULO: NOVA SOLICITAÇÃO
+// ==========================================================================
+let idControleItens = 0;
+function adicionarItemInterface() {
+  idControleItens++;
+  const html = `
+        <div class="item-solicitacao" data-item-id="${idControleItens}">
+            <div class="form-group">
+                <label>Descrição do Produto/Serviço *</label>
+                <input type="text" class="item-descricao" required placeholder="Ex: Monitor Dell 24 polegadas">
+            </div>
+            <div class="form-group">
+                <label>Quantidade *</label>
+                <input type="number" class="item-quantidade" min="1" required placeholder="1">
+            </div>
+            <button type="button" class="btn-remover-item" data-item-id="${idControleItens}" title="Remover"><i class="fas fa-trash-alt"></i></button>
+            <div class="fotos-item-container">
+                <input type="file" class="fotos-input" data-item-id="${idControleItens}" multiple accept="image/*" style="display:none;">
+                <button type="button" class="btn-secundario btn-sm btn-adicionar-fotos" data-item-id="${idControleItens}">
+                    <i class="fas fa-camera"></i> Anexar Imagens
+                </button>
+                <div class="fotos-preview" data-item-id="${idControleItens}"></div>
+            </div>
         </div>
     `;
-    elementos.itensLista.appendChild(div);
+  document.getElementById("itens-lista").insertAdjacentHTML("beforeend", html);
 }
 
-function removerItem(id) {
-    const itens = elementos.itensLista.querySelectorAll('.item-solicitacao');
-    if (itens.length <= 1) {
-        mostrarNotificacao('A solicitação deve conter pelo menos um item', 'aviso');
-        return;
-    }
-    const item = elementos.itensLista.querySelector(`.item-solicitacao[data-item-id="${id}"]`);
-    if (item) item.remove();
+function removerItemInterface(id) {
+  const lista = document.getElementById("itens-lista");
+  if (lista.children.length <= 1)
+    return mostrarNotificacao("Adicione ao menos 1 item.", "aviso");
+  lista.querySelector(`.item-solicitacao[data-item-id="${id}"]`).remove();
 }
 
-function adicionarFotosItem(itemId, arquivos) {
-    const previewContainer = elementos.itensLista.querySelector(`.fotos-preview[data-item-id="${itemId}"]`);
-    if (!previewContainer) return;
-    
-    Array.from(arquivos).forEach(arquivo => {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const wrap = document.createElement('div');
-            wrap.className = 'foto-item-wrapper';
-            wrap.innerHTML = `<img src="${e.target.result}" data-name="${escapeHTML(arquivo.name)}">`;
-            previewContainer.appendChild(wrap);
-        };
-        reader.readAsDataURL(arquivo);
+async function processarFotosItem(itemId, arquivos) {
+  const previewBox = document.querySelector(
+    `.fotos-preview[data-item-id="${itemId}"]`,
+  );
+  for (let arquivo of arquivos) {
+    const urlSegura = await simularUploadArquivo(arquivo);
+    previewBox.insertAdjacentHTML(
+      "beforeend",
+      `<div class="foto-item-wrapper"><img src="${urlSegura}" data-b64="true"></div>`,
+    );
+  }
+}
+
+async function enviarSolicitacao(e) {
+  e.preventDefault();
+  const btnSubmit = document.getElementById("btn-enviar-solicitacao");
+  btnSubmit.disabled = true;
+
+  try {
+    const itensElements = document.querySelectorAll(".item-solicitacao");
+    const itens = Array.from(itensElements).map((el) => {
+      return {
+        descricao: el.querySelector(".item-descricao").value.trim(),
+        quantidade: parseInt(el.querySelector(".item-quantidade").value),
+        fotos: Array.from(el.querySelectorAll(".fotos-preview img")).map(
+          (img) => img.src,
+        ),
+      };
     });
-}
 
-function enviarSolicitacao(event) {
-    event.preventDefault();
-    const setor = document.getElementById('setor').value;
-    const justificativa = document.getElementById('justificativa').value.trim();
-    const urgencia = document.getElementById('urgencia').value;
-    
-    const elementosItens = elementos.itensLista.querySelectorAll('.item-solicitacao');
-    const itens = [];
-    
-    elementosItens.forEach(el => {
-        const desc = el.querySelector('.item-descricao').value.trim();
-        const qtd = parseInt(el.querySelector('.item-quantidade').value);
-        const fotosSrc = Array.from(el.querySelectorAll('.fotos-preview img')).map(img => img.src);
-        itens.push({ descricao: desc, quantidade: qtd, fotos: fotosSrc });
-    });
-    
-    const novaSolicitacao = {
-        id: dadosAplicacao.próximoId++,
-        protocolo: dadosAplicacao.próximoProtocolo++,
-        solicitante: dadosAplicacao.usuárioAtual.nome,
-        setor,
-        justificativa,
-        urgencia,
-        itens,
-        status: 'solicitado',
-        dataCriacao: new Date().toISOString(),
-        orcamentos: [],
-        historicoAcoes: [{ acao: 'Criação', usuario: dadosAplicacao.usuárioAtual.nome, data: new Date().toISOString() }]
+    const nova = {
+      id: Date.now(),
+      protocolo: appState.proximoProtocolo++,
+      solicitante: appState.usuarioAtual.nome,
+      setor: document.getElementById("setor").value,
+      justificativa: document.getElementById("justificativa").value.trim(),
+      urgencia: document.getElementById("urgencia").value,
+      itens,
+      status: "solicitado",
+      dataCriacao: new Date().toISOString(),
+      orcamentos: [],
+      historicoAcoes: [
+        {
+          acao: "Criação",
+          usuario: appState.usuarioAtual.nome,
+          data: new Date().toISOString(),
+        },
+      ],
     };
-    
-    dadosAplicacao.solicitações.push(novaSolicitacao);
-    salvarDadosLocalStorage();
-    mostrarNotificacao(`Solicitação criada com sucesso! Protocolo #${novaSolicitacao.protocolo}`, 'sucesso');
-    
-    elementos.formSolicitacao.reset();
-    elementos.itensLista.innerHTML = '';
-    adicionarItem();
-    alternarTela('historico');
+
+    appState.solicitacoes.push(nova);
+    await DatabaseService.salvarSolicitacoes(appState.solicitacoes);
+
+    mostrarNotificacao(
+      `Solicitação #${nova.protocolo} criada com sucesso!`,
+      "sucesso",
+    );
+    document.getElementById("form-solicitacao").reset();
+    document.getElementById("itens-lista").innerHTML = "";
+    adicionarItemInterface();
+    alternarTela("historico");
+  } catch (err) {
+    mostrarNotificacao(err.message, "erro");
+  } finally {
+    btnSubmit.disabled = false;
+  }
 }
 
-function atualizarInterface() {
-    atualizarHistorico();
-    atualizarModuloCotações();
-    atualizarModuloAprovação();
-    atualizarModuloFinalização();
+// ==========================================================================
+// FUNÇÕES DE ATUALIZAÇÃO DE INTERFACE (WORKFLOWS)
+// ==========================================================================
+function atualizarInterfaceModulos() {
+  atualizarHistorico();
+  atualizarModuloCotações();
+  atualizarModuloAprovacao();
+  atualizarModuloFinalizacao();
 }
 
 function atualizarHistorico() {
-    if (!elementos.solicitacoesLista) return;
-    
-    const fStatus = elementos.filtroStatus.value;
-    const fSetor = elementos.filtroSetor.value;
-    const fSolicitante = elementos.filtroSolicitante.value;
-    
-    elementos.solicitacoesLista.innerHTML = '';
-    
-    const filtrados = dadosAplicacao.solicitações.filter(s => {
-        if (fStatus !== 'todos' && s.status !== fStatus) return false;
-        if (fSetor !== 'todos' && s.setor !== fSetor) return false;
-        if (fSolicitante !== 'todos' && s.solicitante !== fSolicitante) return false;
-        return true;
-    });
-    
-    if(filtrados.length === 0) {
-        elementos.solicitacoesLista.innerHTML = '<p class="full-width text-center color-muted py-4">Nenhuma solicitação encontrada para os filtros aplicados.</p>';
-        return;
-    }
-    
-    filtrados.reverse().forEach(s => {
-        const nomesProdutos = s.itens.map(i => escapeHTML(i.descricao)).join(', ');
-        const card = document.createElement('div');
-        card.className = 'solicitacao-card';
-        card.innerHTML = `
+  const container = document.querySelector(".solicitacoes-lista");
+  if (!container) return;
+
+  const [fStatus, fSetor, fSol] = [
+    "filtro-status",
+    "filtro-setor",
+    "filtro-solicitante",
+  ].map((id) => document.getElementById(id).value);
+
+  let html = "";
+  const filtrados = appState.solicitacoes
+    .filter((s) => {
+      return (
+        (fStatus === "todos" || s.status === fStatus) &&
+        (fSetor === "todos" || s.setor === fSetor) &&
+        (fSol === "todos" || s.solicitante === fSol)
+      );
+    })
+    .reverse();
+
+  if (filtrados.length === 0) {
+    container.innerHTML =
+      '<p class="full-width text-center color-muted py-4">Nenhum registro encontrado.</p>';
+    return;
+  }
+
+  filtrados.forEach((s) => {
+    const prodNames = s.itens.map((i) => escapeHTML(i.descricao)).join(", ");
+    html += `
+        <div class="solicitacao-card">
             <div class="card-header-info">
                 <span class="protocol-badge">#${s.protocolo}</span>
                 <span class="status-badge ${s.status}">${s.status.toUpperCase()}</span>
@@ -522,483 +609,458 @@ function atualizarHistorico() {
             <div class="card-body-details">
                 <h4>Setor de ${escapeHTML(s.setor.toUpperCase())}</h4>
                 <p class="meta-row"><strong>Solicitante:</strong> ${escapeHTML(s.solicitante)}</p>
-                <p class="meta-row"><strong>Urgência:</strong> ${escapeHTML(s.urgencia.toUpperCase())}</p>
-                <p class="meta-row">
-                    <strong>Produto(s):</strong> <span class="destaque-produto">${nomesProdutos}</span>
-                </p>
-                <p class="meta-row" style="font-size: 0.75rem">(${s.itens.length} item/itens na lista)</p>
+                <p class="meta-row"><strong>Produto(s):</strong> <span class="destaque-produto">${prodNames}</span></p>
             </div>
             <div class="card-actions-wrapper">
-                <button class="btn-secundario btn-sm btn-ver-detalhes" data-id="${s.id}"><i class="fas fa-eye"></i> Detalhes</button>
+                <button class="btn-secundario btn-sm btn-ver-detalhes w-100" data-id="${s.id}"><i class="fas fa-eye"></i> Detalhes do Pedido</button>
             </div>
-        `;
-        elementos.solicitacoesLista.appendChild(card);
-    });
+        </div>`;
+  });
+  container.innerHTML = html;
 }
 
 function atualizarModuloCotações() {
-    if (!elementos.solicitacoesOrcamento) return;
-    elementos.solicitacoesOrcamento.innerHTML = '';
-    
-    const pendentes = dadosAplicacao.solicitações.filter(s => s.status === 'solicitado' || s.status === 'cotacao');
-    if (pendentes.length === 0) {
-        elementos.solicitacoesOrcamento.innerHTML = '<p class="color-muted p-3 text-center">Nenhum processo aguardando cotação comercial.</p>';
-        return;
-    }
-    
-    pendentes.forEach(s => {
-        const nomesProdutos = s.itens.map(i => escapeHTML(i.descricao)).join(', ');
-        
-        const div = document.createElement('div');
-        div.className = 'card-mini-workflow';
-        div.setAttribute('data-id', s.id);
-        div.innerHTML = `
-            <div class="flex justify-between font-mono font-bold color-muted mb-1" style="display:flex; justify-content:space-between">
+  const container = document.querySelector(".solicitacoes-orcamento");
+  if (!container) return;
+
+  const pendentes = appState.solicitacoes.filter((s) =>
+    ["solicitado", "cotacao"].includes(s.status),
+  );
+  if (pendentes.length === 0) {
+    container.innerHTML =
+      '<p class="color-muted p-3 text-center">Nenhum processo aguardando cotação.</p>';
+    return;
+  }
+
+  container.innerHTML = pendentes
+    .map(
+      (s) => `
+        <div class="card-mini-workflow" data-id="${s.id}">
+            <div class="flex justify-between font-mono font-bold color-muted mb-1">
                 <span>#${s.protocolo}</span> <span>${s.orcamentos.length} Orc(s)</span>
             </div>
-            <div class="destaque-produto-box" title="${nomesProdutos}">
-                <i class="fas fa-box-open"></i> 
-                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;">
-                    ${nomesProdutos}
-                </span>
-            </div>
-            <div style="font-weight: 500; font-size: 0.85rem; color: var(--text-muted)">
-                ${escapeHTML(s.justificativa).substring(0,60)}...
-            </div>
-            <button class="btn-primario btn-sm btn-orcamento mt-2 w-100" style="margin-top: 12px" data-id="${s.id}">
-                <i class="fas fa-file-invoice-dollar"></i> Lançar Proposta
-            </button>
-        `;
-        elementos.solicitacoesOrcamento.appendChild(div);
-    });
+            <div class="destaque-produto-box"><i class="fas fa-box-open"></i> <span class="truncate">${escapeHTML(s.itens.map((i) => i.descricao).join(", "))}</span></div>
+            <div style="font-size: 0.85rem; color: var(--text-muted)">${escapeHTML(s.justificativa).substring(0, 60)}...</div>
+            <button class="btn-primario btn-sm btn-orcamento mt-2 w-100" style="margin-top: 12px" data-id="${s.id}"><i class="fas fa-plus"></i> Lançar Proposta</button>
+        </div>
+    `,
+    )
+    .join("");
 }
 
 function prepararFormOrcamento(id) {
-    document.getElementById('orcamento-solicitacao-id').value = id;
-    document.querySelectorAll('.card-mini-workflow').forEach(c => c.classList.remove('selected'));
-    const selecionado = elementos.solicitacoesOrcamento.querySelector(`.card-mini-workflow[data-id="${id}"]`);
-    if(selecionado) selecionado.classList.add('selected');
-    document.getElementById('fornecedor').focus();
+  document.getElementById("orcamento-solicitacao-id").value = id;
+  document
+    .querySelectorAll(".card-mini-workflow")
+    .forEach((c) => c.classList.remove("selected"));
+  document
+    .querySelector(`.card-mini-workflow[data-id="${id}"]`)
+    ?.classList.add("selected");
+  document.getElementById("fornecedor").focus();
+  if (window.innerWidth < 768)
+    document
+      .getElementById("form-adicionar-orcamento")
+      .scrollIntoView({ behavior: "smooth" });
 }
 
 function gerenciarAnexosOrcamento(e) {
-    elementos.previewAnexos.innerHTML = '';
-    Array.from(e.target.files).forEach(f => {
-        const span = document.createElement('span');
-        span.className = 'anexo-item-tag';
-        span.innerHTML = `<i class="fas fa-paperclip"></i> ${escapeHTML(f.name)}`;
-        elementos.previewAnexos.appendChild(span);
+  const box = document.getElementById("preview-anexos");
+  box.innerHTML = Array.from(e.target.files)
+    .map(
+      (f) =>
+        `<span class="anexo-item-tag"><i class="fas fa-paperclip"></i> ${escapeHTML(f.name)}</span>`,
+    )
+    .join("");
+}
+
+async function adicionarOrcamento(e) {
+  e.preventDefault();
+  const id = parseInt(
+    document.getElementById("orcamento-solicitacao-id").value,
+  );
+  if (!id)
+    return mostrarNotificacao("Selecione uma solicitação na lista", "aviso");
+
+  const solicitacao = appState.solicitacoes.find((s) => s.id === id);
+  solicitacao.orcamentos.push({
+    id: Date.now(),
+    fornecedor: document.getElementById("fornecedor").value.trim(),
+    valor: parseFloat(document.getElementById("valor-orcamento").value),
+    prazo: parseInt(document.getElementById("prazo-entrega").value),
+    comprador: appState.usuarioAtual.nome,
+    dataRegistro: new Date().toISOString(),
+  });
+
+  if (
+    confirm(
+      "Orçamento salvo! Deseja enviar para aprovação da Gestão agora?\n\n(Cancelar = Continuar lançando propostas)",
+    )
+  ) {
+    solicitacao.status = "aprovacao";
+    solicitacao.historicoAcoes.push({
+      acao: "Enviado para Aprovação",
+      usuario: appState.usuarioAtual.nome,
+      data: new Date().toISOString(),
     });
+  } else {
+    solicitacao.status = "cotacao";
+    solicitacao.historicoAcoes.push({
+      acao: "Orçamento Adicionado",
+      usuario: appState.usuarioAtual.nome,
+      data: new Date().toISOString(),
+    });
+  }
+
+  await DatabaseService.salvarSolicitacoes(appState.solicitacoes);
+  mostrarNotificacao("Proposta registrada!", "sucesso");
+  e.target.reset();
+  document.getElementById("preview-anexos").innerHTML = "";
+  document.getElementById("orcamento-solicitacao-id").value = "";
+  atualizarInterfaceModulos();
 }
 
-function adicionarOrcamento(event) {
-    event.preventDefault();
-    const id = parseInt(document.getElementById('orcamento-solicitacao-id').value);
-    if (!id) { mostrarNotificacao('Selecione uma solicitação pendente ao lado', 'aviso'); return; }
-    
-    const fornecedor = document.getElementById('fornecedor').value.trim();
-    const valor = parseFloat(document.getElementById('valor-orcamento').value);
-    const prazo = parseInt(document.getElementById('prazo-entrega').value);
-    
-    const solicitacao = dadosAplicacao.solicitações.find(s => s.id === id);
-    if(solicitacao) {
-        solicitacao.orcamentos.push({
-            id: solicitacao.orcamentos.length + 1,
-            fornecedor, valor, prazo,
-            comprador: dadosAplicacao.usuárioAtual.nome,
-            dataRegistro: new Date().toISOString()
-        });
-        
-        // BUG CORRIGIDO AQUI: Fluxo ajustado para dar controle ao comprador
-        const desejaAprovar = confirm("Orçamento salvo! Deseja enviar esta solicitação para a aprovação do Gestor agora? \n\n(Se deseja adicionar mais propostas, clique em Cancelar).");
-        
-        if (desejaAprovar) {
-            solicitacao.status = 'aprovacao';
-            solicitacao.historicoAcoes.push({ acao: 'Enviado para Aprovação', usuario: dadosAplicacao.usuárioAtual.nome, data: new Date().toISOString() });
-        } else {
-            solicitacao.status = 'cotacao';
-            solicitacao.historicoAcoes.push({ acao: 'Orçamento Adicionado', usuario: dadosAplicacao.usuárioAtual.nome, data: new Date().toISOString() });
-        }
-        
-        salvarDadosLocalStorage();
-        mostrarNotificacao(`Proposta registrada com sucesso!`, 'sucesso');
-        elementos.formAdicionarOrcamento.reset();
-        elementos.previewAnexos.innerHTML = '';
-        document.getElementById('orcamento-solicitacao-id').value = '';
-        atualizarInterface();
-    }
-}
+function atualizarModuloAprovacao() {
+  const c = document.querySelector(".solicitacoes-aprovacao");
+  if (!c) return;
+  const items = appState.solicitacoes.filter((s) => s.status === "aprovacao");
 
-function atualizarModuloAprovação() {
-    if (!elementos.solicitacoesAprovacao) return;
-    elementos.solicitacoesAprovacao.innerHTML = '';
-    
-    const analises = dadosAplicacao.solicitações.filter(s => s.status === 'aprovacao');
-    if(analises.length === 0) {
-        elementos.solicitacoesAprovacao.innerHTML = '<p class="full-width text-center color-muted py-4">Nenhuma demanda aguardando avaliação da gestão.</p>';
-        return;
-    }
-    
-    analises.forEach(s => {
-        const nomesProdutos = s.itens.map(i => escapeHTML(i.descricao)).join(', ');
-        const card = document.createElement('div');
-        card.className = 'solicitacao-card';
-        card.innerHTML = `
+  c.innerHTML =
+    items.length === 0
+      ? '<p class="full-width text-center color-muted py-4">Nenhuma pendência de gestão.</p>'
+      : items
+          .map(
+            (s) => `
+        <div class="solicitacao-card">
             <div class="card-header-info">
-                <span class="protocol-badge">#${s.protocolo}</span>
-                <span class="status-badge aprovacao">ANÁLISE</span>
+                <span class="protocol-badge">#${s.protocolo}</span> <span class="status-badge aprovacao">ANÁLISE</span>
             </div>
             <div class="card-body-details">
-                <h4><span class="destaque-produto">${nomesProdutos}</span></h4>
-                <p class="meta-row"><strong>Justificativa:</strong> ${escapeHTML(s.justificativa).substring(0, 45)}...</p>
-                <p class="meta-row"><strong>Solicitante:</strong> ${escapeHTML(s.solicitante)}</p>
-                <p class="meta-row"><strong>Cotações:</strong> ${s.orcamentos.length} propostas prontas</p>
+                <h4><span class="destaque-produto">${escapeHTML(s.itens.map((i) => i.descricao).join(", "))}</span></h4>
+                <p class="meta-row"><strong>Urgência:</strong> ${s.urgencia.toUpperCase()} | <strong>Cotações:</strong> ${s.orcamentos.length}</p>
             </div>
             <div class="card-actions-wrapper">
-                <button class="btn-primario btn-sm btn-aprovar" data-id="${s.id}"><i class="fas fa-gavel"></i> Avaliar</button>
+                <button class="btn-primario btn-sm btn-aprovar w-100" data-id="${s.id}"><i class="fas fa-gavel"></i> Avaliar Processo</button>
             </div>
-        `;
-        elementos.solicitacoesAprovacao.appendChild(card);
-    });
+        </div>`,
+          )
+          .join("");
 }
 
 function prepararModalAprovacao(id) {
-    const s = dadosAplicacao.solicitações.find(x => x.id === id);
-    if(!s) return;
-    
-    document.getElementById('aprovacao-solicitacao-id').value = id;
-    const corpo = document.getElementById('modal-aprovacao-corpo');
-    
-    let tabelaPropostas = s.orcamentos.map(o => `
-        <div style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-            <span><strong>${escapeHTML(o.fornecedor)}</strong> (Prazo: ${o.prazo} dias)</span>
-            <span style="color: var(--primary); font-weight: 700; font-size: 1.1rem;">R$ ${o.valor.toFixed(2)}</span>
+  const s = appState.solicitacoes.find((x) => x.id === id);
+  document.getElementById("aprovacao-solicitacao-id").value = id;
+
+  const tabela = s.orcamentos
+    .map(
+      (o) => `
+        <div style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
+            <span><strong>${escapeHTML(o.fornecedor)}</strong> (${o.prazo} dias)</span>
+            <span style="color:var(--primary); font-weight:700">R$ ${o.valor.toFixed(2)}</span>
         </div>
-    `).join('');
-    
-    corpo.innerHTML = `
-        <div style="margin-bottom: 16px;">
-            <p style="margin-bottom: 6px;"><strong>Justificativa original:</strong> ${escapeHTML(s.justificativa)}</p>
-            <p style="font-size: 0.85rem; color: var(--text-muted)">Setor: ${escapeHTML(s.setor.toUpperCase())} | Urgência: ${escapeHTML(s.urgencia.toUpperCase())}</p>
-        </div>
-        <div style="margin-bottom: 8px;"><strong>Tabela Comparativa de Preços:</strong></div>
-        <div style="background-color: var(--bg-darkest); border-radius: var(--radius-sm); margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.05)">
-            ${tabelaPropostas || '<p style="padding: 12px; color: var(--text-muted)">Sem cotações registradas.</p>'}
-        </div>
+    `,
+    )
+    .join("");
+
+  document.getElementById("modal-aprovacao-corpo").innerHTML = `
+        <p><strong>Justificativa:</strong> ${escapeHTML(s.justificativa)}</p>
+        <div style="background:var(--bg-darkest); margin:10px 0; border-radius:6px;">${tabela}</div>
     `;
-    
-    document.getElementById('modal-aprovacao').style.display = 'flex';
+  document.getElementById("modal-aprovacao").style.display = "flex";
 }
 
-document.getElementById('btn-rejeitar')?.addEventListener('click', function() {
-    const id = parseInt(document.getElementById('aprovacao-solicitacao-id').value);
-    const obs = document.getElementById('observacoes-aprovacao').value.trim();
-    if(!obs) { mostrarNotificacao('Insira uma justificativa para a reprovação do pedido', 'aviso'); return; }
-    
-    const s = dadosAplicacao.solicitações.find(x => x.id === id);
-    if(s) {
-        s.status = 'rejeitado';
-        s.historicoAcoes.push({ acao: 'Reprovação', usuario: dadosAplicacao.usuárioAtual.nome, data: new Date().toISOString(), obs });
-        salvarDadosLocalStorage();
-        mostrarNotificacao('A solicitação foi indeferida e arquivada.', 'info');
-        document.getElementById('modal-aprovacao').style.display = 'none';
-        document.getElementById('form-acao-aprovacao').reset();
-        atualizarInterface();
-    }
-});
+async function processarAprovacao(novoStatus) {
+  const id = parseInt(
+    document.getElementById("aprovacao-solicitacao-id").value,
+  );
+  const obs = document.getElementById("observacoes-aprovacao").value.trim();
+  if (!obs)
+    return mostrarNotificacao("Preencha as observações / parecer", "aviso");
 
-document.getElementById('btn-aprovar-confirmar')?.addEventListener('click', function() {
-    const id = parseInt(document.getElementById('aprovacao-solicitacao-id').value);
-    const obs = document.getElementById('observacoes-aprovacao').value.trim();
-    
-    const s = dadosAplicacao.solicitações.find(x => x.id === id);
-    if(s) {
-        s.status = 'compra';
-        s.historicoAcoes.push({ acao: 'Aprovação', usuario: dadosAplicacao.usuárioAtual.nome, data: new Date().toISOString(), obs });
-        salvarDadosLocalStorage();
-        mostrarNotificacao('Solicitação aprovada com sucesso! Direcionada para fechamento.', 'sucesso');
-        document.getElementById('modal-aprovacao').style.display = 'none';
-        document.getElementById('form-acao-aprovacao').reset();
-        atualizarInterface();
-    }
-});
+  const s = appState.solicitacoes.find((x) => x.id === id);
+  s.status = novoStatus;
+  s.historicoAcoes.push({
+    acao: novoStatus === "compra" ? "Aprovação" : "Reprovação",
+    usuario: appState.usuarioAtual.nome,
+    data: new Date().toISOString(),
+    obs,
+  });
 
-function atualizarModuloFinalização() {
-    if (!elementos.solicitacoesFinalizacao) return;
-    elementos.solicitacoesFinalizacao.innerHTML = '';
-    
-    const compras = dadosAplicacao.solicitações.filter(s => s.status === 'compra');
-    if (compras.length === 0) {
-        elementos.solicitacoesFinalizacao.innerHTML = '<p class="full-width text-center color-muted py-4">Nenhum pedido aguardando emissão de ordem de compra.</p>';
-        return;
-    }
-    
-    compras.forEach(s => {
-        const nomesProdutos = s.itens.map(i => escapeHTML(i.descricao)).join(', ');
-        const card = document.createElement('div');
-        card.className = 'solicitacao-card';
-        card.innerHTML = `
+  await DatabaseService.salvarSolicitacoes(appState.solicitacoes);
+  mostrarNotificacao(
+    `Processo ${novoStatus === "compra" ? "Aprovado" : "Rejeitado"}.`,
+    "info",
+  );
+  document.getElementById("modal-aprovacao").style.display = "none";
+  document.getElementById("form-acao-aprovacao").reset();
+  atualizarInterfaceModulos();
+}
+
+function atualizarModuloFinalizacao() {
+  const c = document.querySelector(".solicitacoes-finalizacao");
+  if (!c) return;
+  const items = appState.solicitacoes.filter((s) => s.status === "compra");
+
+  c.innerHTML =
+    items.length === 0
+      ? '<p class="full-width text-center color-muted py-4">Nenhum pedido para fechar.</p>'
+      : items
+          .map(
+            (s) => `
+        <div class="solicitacao-card">
             <div class="card-header-info">
-                <span class="protocol-badge">#${s.protocolo}</span>
-                <span class="status-badge compra">FATURAR</span>
+                <span class="protocol-badge">#${s.protocolo}</span> <span class="status-badge compra">FATURAR</span>
             </div>
             <div class="card-body-details">
-                <h4><span class="destaque-produto">${nomesProdutos}</span></h4>
-                <p class="meta-row"><strong>Aprovado por:</strong> ${escapeHTML(s.historicoAcoes.find(a => a.acao === 'Aprovação')?.usuario || 'Gestor')}</p>
-                <p class="meta-row"><strong>Itens:</strong> ${s.itens.length} itens inclusos</p>
+                <h4><span class="destaque-produto">${escapeHTML(s.itens.map((i) => i.descricao).join(", "))}</span></h4>
             </div>
             <div class="card-actions-wrapper">
-                <button class="btn-success btn-sm btn-finalizar" data-id="${s.id}"><i class="fas fa-shopping-bag"></i> Concluir</button>
+                <button class="btn-success btn-sm btn-finalizar w-100" data-id="${s.id}"><i class="fas fa-shopping-bag"></i> Concluir Pedido</button>
             </div>
-        `;
-        elementos.solicitacoesFinalizacao.appendChild(card);
-    });
+        </div>`,
+          )
+          .join("");
 }
 
 function prepararModalFinalizacao(id) {
-    const s = dadosAplicacao.solicitações.find(x => x.id === id);
-    if (!s) return;
-    
-    document.getElementById('finalizacao-solicitacao-id').value = id;
-    const select = document.getElementById('orcamento-vencedor');
-    select.innerHTML = '<option value="">Escolha uma proposta...</option>';
-    
-    s.orcamentos.forEach(o => {
-        const opt = document.createElement('option');
-        opt.value = o.id;
-        opt.textContent = `${escapeHTML(o.fornecedor)} - R$ ${o.valor.toFixed(2)}`;
-        select.appendChild(opt);
+  const s = appState.solicitacoes.find((x) => x.id === id);
+  document.getElementById("finalizacao-solicitacao-id").value = id;
+
+  const sel = document.getElementById("orcamento-vencedor");
+  sel.innerHTML =
+    '<option value="">Selecione o vencedor...</option>' +
+    s.orcamentos
+      .map(
+        (o) =>
+          `<option value="${o.id}">${escapeHTML(o.fornecedor)} - R$ ${o.valor.toFixed(2)}</option>`,
+      )
+      .join("");
+
+  sel.onchange = function () {
+    const orc = s.orcamentos.find((x) => x.id == this.value);
+    if (orc) document.getElementById("valor-final").value = orc.valor;
+  };
+
+  document.getElementById("form-acao-finalizacao").onsubmit = async (e) => {
+    e.preventDefault();
+    s.status = "concluido";
+    s.historicoAcoes.push({
+      acao: "Fechamento e Compra",
+      usuario: appState.usuarioAtual.nome,
+      data: new Date().toISOString(),
     });
-    
-    document.getElementById('modal-finalizacao-corpo').innerHTML = `
-        <p style="font-size: 0.9rem"><strong>Protocolo:</strong> #${s.protocolo} | <strong>Justificativa:</strong> ${escapeHTML(s.justificativa)}</p>
-    `;
-    
-    document.getElementById('orcamento-vencedor').onchange = function() {
-        const oId = parseInt(this.value);
-        const oMatch = s.orcamentos.find(x => x.id === oId);
-        if(oMatch) document.getElementById('valor-final').value = oMatch.valor;
-    };
-    
-    document.getElementById('form-acao-finalizacao').onsubmit = function(e) {
-        e.preventDefault();
-        const vId = parseInt(document.getElementById('orcamento-vencedor').value);
-        const finalVal = parseFloat(document.getElementById('valor-final').value);
-        
-        if(!vId) { mostrarNotificacao('Selecione a proposta comercial vencedora', 'erro'); return; }
-        
-        s.status = 'concluido';
-        s.orcamentoVencedor = s.orcamentos.find(x => x.id === vId);
-        s.valorFinalHomologado = finalVal;
-        s.historicoAcoes.push({ acao: 'Fechamento', usuario: dadosAplicacao.usuárioAtual.nome, data: new Date().toISOString() });
-        
-        salvarDadosLocalStorage();
-        mostrarNotificacao(`Processo de compras finalizado com sucesso!`, 'sucesso');
-        document.getElementById('modal-finalizacao').style.display = 'none';
-        atualizarInterface();
-    };
-    
-    document.getElementById('modal-finalizacao').style.display = 'flex';
+    await DatabaseService.salvarSolicitacoes(appState.solicitacoes);
+    mostrarNotificacao("Processo concluído com sucesso!", "sucesso");
+    document.getElementById("modal-finalizacao").style.display = "none";
+    atualizarInterfaceModulos();
+  };
+
+  document.getElementById("modal-finalizacao").style.display = "flex";
 }
 
+// ==========================================================================
+// VISUALIZAÇÃO E UTILITÁRIOS (MODAIS E CONFIGS)
+// ==========================================================================
 function mostrarDetalhesSolicitacao(id) {
-    const s = dadosAplicacao.solicitações.find(x => x.id === id);
-    if (!s) return;
-    
-    const corpo = document.getElementById('modal-detalhes-corpo');
-    let listaItensHtml = s.itens.map(i => `
-        <div style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem;">
-            <div><strong class="destaque-produto" style="font-size:1rem">${escapeHTML(i.descricao)}</strong> - Qtd: ${i.quantidade}</div>
-            <div style="display: flex; gap: 8px; margin-top: 8px;">
-                ${(i.fotos || []).map(f => `<img src="${escapeHTML(f)}" style="width:54px;height:54px;object-fit:cover;border-radius:6px; border: 1px solid var(--border-color)">`).join('')}
+  const s = appState.solicitacoes.find((x) => x.id === id);
+  const htmlItens = s.itens
+    .map(
+      (i) => `
+        <div style="padding:10px; border-bottom:1px solid var(--border-color)">
+            <strong>${escapeHTML(i.descricao)}</strong> (Qtd: ${i.quantidade})
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                ${i.fotos.map((f) => `<img src="${f}" style="width:50px;height:50px;border-radius:4px;object-fit:cover;">`).join("")}
             </div>
         </div>
-    `).join('');
-    
-    let listHistHtml = s.historicoAcoes.map(h => `
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px;">• <strong style="color:var(--text-main)">${h.data.substring(0,10)} ${h.data.substring(11,16)}</strong>: ${escapeHTML(h.acao)} por ${escapeHTML(h.usuario)} ${h.obs ? `(<em>${escapeHTML(h.obs)}</em>)` : ''}</p>
-    `).join('');
-    
-    corpo.innerHTML = `
-        <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
-            <p><strong>Protocolo:</strong> #${s.protocolo} | <strong>Status:</strong> <span class="status-badge ${s.status}">${s.status.toUpperCase()}</span></p>
-            <p><strong>Setor:</strong> ${escapeHTML(s.setor.toUpperCase())} | <strong>Urgência:</strong> ${escapeHTML(s.urgencia.toUpperCase())}</p>
-            <p style="margin-top: 8px;"><strong>Justificativa:</strong> ${escapeHTML(s.justificativa)}</p>
+    `,
+    )
+    .join("");
+
+  const htmlHist = s.historicoAcoes
+    .map(
+      (h) =>
+        `<p style="font-size:0.8rem; margin-bottom:4px;">• <strong>${new Date(h.data).toLocaleString("pt-BR")}</strong> - ${escapeHTML(h.acao)} por ${escapeHTML(h.usuario)} ${h.obs ? `(${escapeHTML(h.obs)})` : ""}</p>`,
+    )
+    .join("");
+
+  document.getElementById("modal-detalhes-corpo").innerHTML = `
+        <div style="margin-bottom:16px;">
+            <p><strong>Protocolo:</strong> #${s.protocolo} | <strong>Status:</strong> ${s.status.toUpperCase()}</p>
+            <p><strong>Justificativa:</strong> ${escapeHTML(s.justificativa)}</p>
         </div>
-        <div style="margin-bottom: 20px;">
-            <h5 style="margin-bottom: 8px; font-weight: 600;">Produtos Requisitados:</h5>
-            <div style="background-color: var(--bg-darkest); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05)">
-                ${listaItensHtml}
-            </div>
-        </div>
-        <div>
-            <h5 style="margin-bottom: 8px; font-weight: 600;">Histórico de Movimentações:</h5>
-            <div style="background-color: rgba(0,0,0,0.2); border-radius: var(--radius-sm); padding: 12px; border: 1px solid rgba(255,255,255,0.02)">
-                ${listHistHtml}
-            </div>
-        </div>
+        <div style="margin-bottom:16px; background:var(--bg-darkest); border-radius:6px;">${htmlItens}</div>
+        <div style="padding:12px; background:rgba(0,0,0,0.2); border-radius:6px;">${htmlHist}</div>
     `;
-    document.getElementById('modal-detalhes').style.display = 'flex';
+  document.getElementById("modal-detalhes").style.display = "flex";
 }
 
 function atualizarFiltroSolicitantes() {
-    if (!elementos.filtroSolicitante) return;
-    const lista = Array.from(new Set(dadosAplicacao.solicitações.map(s => s.solicitante)));
-    elementos.filtroSolicitante.innerHTML = '<option value="todos">Todos os Solicitantes</option>';
-    lista.forEach(nome => {
-        const opt = document.createElement('option');
-        opt.value = escapeHTML(nome);
-        opt.textContent = escapeHTML(nome);
-        elementos.filtroSolicitante.appendChild(opt);
-    });
+  const sel = document.getElementById("filtro-solicitante");
+  if (!sel) return;
+  const nomes = [...new Set(appState.solicitacoes.map((s) => s.solicitante))];
+  sel.innerHTML =
+    '<option value="todos">Todos</option>' +
+    nomes
+      .map((n) => `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`)
+      .join("");
 }
 
-function atualizarListaUsuarios() {
-    if (!elementos.usuariosGrid) return;
-    elementos.usuariosGrid.innerHTML = '';
-    
-    dadosAplicacao.usuarios.forEach(u => {
-        const div = document.createElement('div');
-        div.className = 'usuario-card-item';
-        div.innerHTML = `
+// ==========================================================================
+// MÓDULO DE USUÁRIOS E CONFIGURAÇÃO DE ACESSO
+// ==========================================================================
+function atualizarInterfaceUsuarios() {
+  const grid = document.querySelector(".usuarios-grid");
+  if (!grid) return;
+  grid.innerHTML = appState.usuarios
+    .map(
+      (u) => `
+        <div class="usuario-card-item">
             <div class="user-meta-box">
                 <h5>${escapeHTML(u.nome)}</h5>
-                <p>Login: ${escapeHTML(u.login)} | Perfil: ${escapeHTML(u.perfil.toUpperCase())}</p>
+                <p>${escapeHTML(u.login)} | ${escapeHTML(u.perfil.toUpperCase())}</p>
             </div>
-            <div style="display: flex; gap: 8px;">
+            <div style="display:flex; gap:8px;">
                 <button class="btn-secundario btn-sm btn-editar-usuario" data-id="${u.id}"><i class="fas fa-edit"></i></button>
-                <button class="btn-danger btn-sm btn-excluir-usuario" data-id="${u.id}" ${u.id===1?'disabled':''}><i class="fas fa-trash-alt"></i></button>
+                <button class="btn-danger btn-sm btn-excluir-usuario" data-id="${u.id}" ${u.id === 1 ? "disabled" : ""}><i class="fas fa-trash"></i></button>
             </div>
-        `;
-        elementos.usuariosGrid.appendChild(div);
-    });
+        </div>
+    `,
+    )
+    .join("");
 }
 
-function salvarUsuario(e) {
-    e.preventDefault();
-    const id = elementos.usuarioIdInput.value;
-    const nome = elementos.usuarioNomeInput.value.trim();
-    const login = elementos.usuarioLoginInput.value.trim();
-    const senha = elementos.usuarioSenhaInput.value;
-    const perfil = elementos.usuarioPerfilSelect.value;
-    
-    if (senha.length < 6) { mostrarNotificacao('A senha deve possuir pelo menos 6 dígitos.', 'erro'); return; }
-    
-    const permissoes = {
-        novaSolicitacao: document.getElementById('permissao-nova').checked,
-        historico: true,
-        compras: document.getElementById('permissao-compras').checked,
-        aprovacao: document.getElementById('permissao-aprovacao').checked,
-        finalizacao: document.getElementById('permissao-finalizacao').checked,
-        usuarios: document.getElementById('permissao-usuarios').checked
-    };
-    
-    if (id) {
-        const idx = dadosAplicacao.usuarios.findIndex(u => u.id === parseInt(id));
-        if (idx !== -1) {
-            dadosAplicacao.usuarios[idx] = { ...dadosAplicacao.usuarios[idx], nome, login, senha, perfil, permissoes };
-            mostrarNotificacao('Colaborador atualizado com sucesso.', 'sucesso');
-        }
-    } else {
-        if(dadosAplicacao.usuarios.some(u => u.login === login)) { mostrarNotificacao('Este apelido/login já está em uso.', 'erro'); return; }
-        dadosAplicacao.usuarios.push({
-            id: Date.now(), nome, login, senha, perfil, permissoes, dataCadastro: new Date().toISOString()
-        });
-        mostrarNotificacao('Colaborador registrado com sucesso.', 'sucesso');
-    }
-    salvarDadosLocalStorage();
-    limparFormularioUsuario();
-    atualizarListaUsuarios();
+async function salvarUsuario(e) {
+  e.preventDefault();
+  const id = document.getElementById("usuario-id").value;
+  const novoUsu = {
+    nome: document.getElementById("usuario-nome").value.trim(),
+    login: document.getElementById("usuario-login").value.trim(),
+    senha: document.getElementById("usuario-senha").value,
+    perfil: document.getElementById("usuario-perfil").value,
+    permissoes: {
+      novaSolicitacao: document.getElementById("permissao-nova").checked,
+      historico: true,
+      compras: document.getElementById("permissao-compras").checked,
+      aprovacao: document.getElementById("permissao-aprovacao").checked,
+      finalizacao: document.getElementById("permissao-finalizacao").checked,
+      usuarios: document.getElementById("permissao-usuarios").checked,
+    },
+  };
+
+  if (id) {
+    const idx = appState.usuarios.findIndex((u) => u.id == id);
+    appState.usuarios[idx] = { ...appState.usuarios[idx], ...novoUsu };
+  } else {
+    if (appState.usuarios.some((u) => u.login === novoUsu.login))
+      return mostrarNotificacao("Login indisponível", "erro");
+    novoUsu.id = Date.now();
+    novoUsu.dataCadastro = new Date().toISOString();
+    appState.usuarios.push(novoUsu);
+  }
+  await DatabaseService.salvarUsuarios(appState.usuarios);
+  mostrarNotificacao("Usuário salvo!", "sucesso");
+  document.getElementById("form-cadastrar-usuario").reset();
+  document.getElementById("usuario-id").value = "";
+  atualizarInterfaceUsuarios();
 }
 
 function editarUsuario(id) {
-    const u = dadosAplicacao.usuarios.find(x => x.id === id);
-    if(!u) return;
-    
-    elementos.usuarioIdInput.value = u.id;
-    elementos.usuarioNomeInput.value = u.nome;
-    elementos.usuarioLoginInput.value = u.login;
-    elementos.usuarioSenhaInput.value = u.senha;
-    elementos.usuarioPerfilSelect.value = u.perfil;
-    
-    document.getElementById('permissao-nova').checked = u.permissoes.novaSolicitacao;
-    document.getElementById('permissao-compras').checked = u.permissoes.compras;
-    document.getElementById('permissao-aprovacao').checked = u.permissoes.aprovacao;
-    document.getElementById('permissao-finalizacao').checked = u.permissoes.finalizacao;
-    document.getElementById('permissao-usuarios').checked = u.permissoes.usuarios;
+  const u = appState.usuarios.find((x) => x.id === id);
+  document.getElementById("usuario-id").value = u.id;
+  document.getElementById("usuario-nome").value = u.nome;
+  document.getElementById("usuario-login").value = u.login;
+  document.getElementById("usuario-senha").value = u.senha;
+  document.getElementById("usuario-perfil").value = u.perfil;
+
+  ["nova", "compras", "aprovacao", "finalizacao", "usuarios"].forEach((p) => {
+    document.getElementById(`permissao-${p}`).checked =
+      u.permissoes[p === "nova" ? "novaSolicitacao" : p];
+  });
+  if (window.innerWidth < 768)
+    document
+      .getElementById("form-cadastrar-usuario")
+      .scrollIntoView({ behavior: "smooth" });
 }
 
-function excluirUsuario(id) {
-    if(id === 1) { mostrarNotificacao('O administrador nativo do sistema não pode ser removido.', 'erro'); return; }
-    if(confirm('Deseja realmente revogar e excluir permanentemente este usuário?')) {
-        dadosAplicacao.usuarios = dadosAplicacao.usuarios.filter(u => u.id !== id);
-        salvarDadosLocalStorage();
-        mostrarNotificacao('Usuário deletado do banco.', 'info');
-        atualizarListaUsuarios();
-    }
+async function excluirUsuario(id) {
+  if (id === 1)
+    return mostrarNotificacao("Admin principal não pode ser excluído", "erro");
+  if (confirm("Revogar acesso deste usuário?")) {
+    appState.usuarios = appState.usuarios.filter((u) => u.id !== id);
+    await DatabaseService.salvarUsuarios(appState.usuarios);
+    atualizarInterfaceUsuarios();
+  }
 }
 
 function atualizarPermissoesPorPerfil(p) {
-    if (!p) return;
-    document.getElementById('permissao-nova').checked = (p === 'solicitante' || p === 'administrador');
-    document.getElementById('permissao-compras').checked = (p === 'comprador' || p === 'administrador');
-    document.getElementById('permissao-aprovacao').checked = (p === 'gestor' || p === 'administrador');
-    document.getElementById('permissao-finalizacao').checked = (p === 'comprador' || p === 'administrador');
-    document.getElementById('permissao-usuarios').checked = (p === 'administrador');
-}
-
-function limparFormularioUsuario() {
-    elementos.formCadastrarUsuario.reset();
-    elementos.usuarioIdInput.value = '';
+  document.getElementById("permissao-nova").checked = [
+    "solicitante",
+    "administrador",
+  ].includes(p);
+  document.getElementById("permissao-compras").checked = [
+    "comprador",
+    "administrador",
+  ].includes(p);
+  document.getElementById("permissao-aprovacao").checked = [
+    "gestor",
+    "administrador",
+  ].includes(p);
+  document.getElementById("permissao-finalizacao").checked = [
+    "comprador",
+    "administrador",
+  ].includes(p);
+  document.getElementById("permissao-usuarios").checked = p === "administrador";
 }
 
 function mostrarModalConfig() {
-    if (!dadosAplicacao.usuárioAtual) return;
-    const u = dadosAplicacao.usuárioAtual;
-    
-    document.getElementById('config-usuario').textContent = escapeHTML(u.nome);
-    document.getElementById('config-perfil').textContent = escapeHTML(u.perfil.toUpperCase());
-    document.getElementById('config-ultimo-acesso').textContent = new Date().toLocaleString('pt-BR');
-    
-    const pBox = document.getElementById('config-permissoes');
-    pBox.innerHTML = `
-        <div class="permissao-config"><i class="fas ${u.permissoes.novaSolicitacao?'fa-check-circle':'fa-times-circle'}"></i> Nova Solicitação</div>
-        <div class="permissao-config"><i class="fas fa-check-circle"></i> Histórico</div>
-        <div class="permissao-config"><i class="fas ${u.permissoes.compras?'fa-check-circle':'fa-times-circle'}"></i> Compras</div>
-        <div class="permissao-config"><i class="fas ${u.permissoes.aprovacao?'fa-check-circle':'fa-times-circle'}"></i> Aprovação</div>
-        <div class="permissao-config"><i class="fas ${u.permissoes.finalizacao?'fa-check-circle':'fa-times-circle'}"></i> Finalização</div>
-        <div class="permissao-config"><i class="fas ${u.permissoes.usuarios?'fa-check-circle':'fa-times-circle'}"></i> Usuários</div>
-    `;
-    elementos.modalConfig.style.display = 'flex';
+  const u = appState.usuarioAtual;
+  document.getElementById("config-usuario").textContent = escapeHTML(u.nome);
+  document.getElementById("config-perfil").textContent = escapeHTML(u.perfil);
+
+  const icons = Object.entries(u.permissoes)
+    .map(
+      ([k, v]) =>
+        `<div class="permissao-config"><i class="fas ${v ? "fa-check-circle text-success" : "fa-times-circle"}"></i> ${k}</div>`,
+    )
+    .join("");
+  document.getElementById("config-permissoes").innerHTML = icons;
+  document.getElementById("modal-config").style.display = "flex";
 }
 
-function alterarSenha(e) {
-    e.preventDefault();
-    const atual = document.getElementById('senha-atual').value;
-    const nova = document.getElementById('nova-senha').value;
-    const conf = document.getElementById('confirmar-senha').value;
-    
-    if(atual !== dadosAplicacao.usuárioAtual.senha) { mostrarNotificacao('Senha atual informada incorreta.', 'erro'); return; }
-    if(nova.length < 6) { mostrarNotificacao('A nova senha deve ter pelo menos 6 caracteres.', 'erro'); return; }
-    if(nova !== conf) { mostrarNotificacao('A confirmação de senha não coincide.', 'erro'); return; }
-    
-    const idx = dadosAplicacao.usuarios.findIndex(u => u.id === dadosAplicacao.usuárioAtual.id);
-    if(idx !== -1) {
-        dadosAplicacao.usuarios[idx].senha = nova;
-        dadosAplicacao.usuárioAtual.senha = nova;
-        salvarDadosLocalStorage();
-        mostrarNotificacao('Sua senha de acesso foi modificada!', 'sucesso');
-        elementos.modalConfig.style.display = 'none';
-        elementos.formAlterarSenha.reset();
-    }
+async function alterarSenha(e) {
+  e.preventDefault();
+  const atual = document.getElementById("senha-atual").value;
+  const nova = document.getElementById("nova-senha").value;
+  if (atual !== appState.usuarioAtual.senha)
+    return mostrarNotificacao("Senha atual inválida", "erro");
+  if (nova !== document.getElementById("confirmar-senha").value)
+    return mostrarNotificacao("Senhas não coincidem", "erro");
+
+  appState.usuarioAtual.senha = nova;
+  const idx = appState.usuarios.findIndex(
+    (u) => u.id === appState.usuarioAtual.id,
+  );
+  appState.usuarios[idx].senha = nova;
+
+  await DatabaseService.salvarUsuarios(appState.usuarios);
+  await DatabaseService.setSessaoAtiva(appState.usuarioAtual);
+
+  mostrarNotificacao("Senha altereda com sucesso!", "sucesso");
+  document.getElementById("modal-config").style.display = "none";
+  e.target.reset();
 }
 
-function mostrarNotificacao(mensagem, tipo = 'info') {
-    const n = document.createElement('div');
-    n.className = `notificacao ${tipo}`;
-    const icone = { 'sucesso': 'fa-check-circle', 'erro': 'fa-exclamation-circle', 'aviso': 'fa-exclamation-triangle', 'info': 'fa-info-circle' }[tipo] || 'fa-info-circle';
-    
-    n.innerHTML = `<i class="fas ${icone}"></i><span>${escapeHTML(mensagem)}</span>`;
-    elementos.notificacoes.appendChild(n);
-    setTimeout(() => { n.remove(); }, 4000);
+function mostrarNotificacao(msg, tipo = "info") {
+  const icone = {
+    sucesso: "fa-check-circle",
+    erro: "fa-exclamation-circle",
+    aviso: "fa-exclamation-triangle",
+    info: "fa-info-circle",
+  }[tipo];
+  const n = document.createElement("div");
+  n.className = `notificacao ${tipo}`;
+  n.innerHTML = `<i class="fas ${icone}"></i><span>${escapeHTML(msg)}</span>`;
+  document.getElementById("notificacoes").appendChild(n);
+  setTimeout(() => n.remove(), 4000);
 }
+
+adicionarItemInterface();

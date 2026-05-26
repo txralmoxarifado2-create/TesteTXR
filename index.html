@@ -1,511 +1,718 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>Sistema de Solicitações de Compra</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
     <div id="tela-login" class="tela-login">
-        <div class="login-container">
-            <div class="login-header">
-                <div class="login-logo-bg">
-                    <i class="fas fa-shopping-cart"></i>
-                </div>
-                <h1>Sistema de Compras</h1>
-                <p class="login-subtitle">Faça login para acessar o sistema</p>
-            </div>
-            
-            <form id="form-login" class="login-form">
-                <div class="form-group">
-                    <label for="login-username"><i class="fas fa-user"></i> Usuário</label>
-                    <input type="text" id="login-username" required placeholder="Digite seu usuário">
-                </div>
-                
-                <div class="form-group">
-                    <label for="login-password"><i class="fas fa-lock"></i> Senha</label>
-                    <input type="password" id="login-password" required placeholder="Digite sua senha">
-                </div>
-                
-                <div class="login-actions">
-                    <button type="submit" class="btn-primario btn-login w-100">
-                        <i class="fas fa-sign-in-alt"></i> Entrar no Sistema
-                    </button>
-                </div>
-                
-                <div class="login-info">
-                    <p class="info-title"><i class="fas fa-info-circle"></i> Credenciais de teste:</p>
-                    <div class="credentials-grid">
-                        <p><span>Admin:</span> admin / admin123</p>
-                        <p><span>Solicitante:</span> joao / joao123</p>
-                        <p><span>Comprador:</span> maria / maria123</p>
-                        <p><span>Gestor:</span> carlos / carlos123</p>
-                    </div>
-                </div>
-            </form>
+      <div class="login-container">
+        <div class="login-header">
+          <div class="login-logo-bg">
+            <i class="fas fa-shopping-cart"></i>
+          </div>
+          <h1>Sistema de Compras</h1>
+          <p class="login-subtitle">Faça login para acessar o sistema</p>
         </div>
+
+        <form id="form-login" class="login-form">
+          <div class="form-group">
+            <label for="login-username"
+              ><i class="fas fa-user"></i> Usuário</label
+            >
+            <input
+              type="text"
+              id="login-username"
+              required
+              placeholder="Digite seu usuário"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="login-password"
+              ><i class="fas fa-lock"></i> Senha</label
+            >
+            <input
+              type="password"
+              id="login-password"
+              required
+              placeholder="Digite sua senha"
+            />
+          </div>
+
+          <div class="login-actions">
+            <button
+              type="submit"
+              id="btn-login-submit"
+              class="btn-primario btn-login w-100"
+            >
+              <i class="fas fa-sign-in-alt"></i> Entrar no Sistema
+            </button>
+          </div>
+
+          <div class="login-info">
+            <p class="info-title">
+              <i class="fas fa-info-circle"></i> Credenciais de teste:
+            </p>
+            <div class="credentials-grid">
+              <p><span>Admin:</span> admin / admin123</p>
+              <p><span>Solicitante:</span> joao / joao123</p>
+              <p><span>Comprador:</span> maria / maria123</p>
+              <p><span>Gestor:</span> carlos / carlos123</p>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
 
-    <div id="sistema-principal" class="sistema-principal" style="display: none;">
-        <header class="header">
-            <div class="container header-layout">
-                <div class="logo">
-                    <div class="logo-icon-box">
-                        <i class="fas fa-shopping-cart"></i>
-                    </div>
-                    <div class="user-info">
-                        <h1>Sistema de Compras</h1>
-                        <div class="user-details">
-                            <span class="user-name" id="usuario-logado">Usuário</span>
-                            <span class="user-perfil" id="perfil-logado">Perfil</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="header-controls">
-                    <nav class="nav">
-                        <button class="nav-btn" data-tela="nova-solicitacao">
-                            <i class="fas fa-plus-circle"></i> Nova Solicitação
-                        </button>
-                        <button class="nav-btn" data-tela="historico">
-                            <i class="fas fa-history"></i> Histórico
-                        </button>
-                        <button class="nav-btn" data-tela="compras">
-                            <i class="fas fa-file-invoice-dollar"></i> Cotações
-                        </button>
-                        <button class="nav-btn" data-tela="aprovacao">
-                            <i class="fas fa-check-circle"></i> Aprovação
-                        </button>
-                        <button class="nav-btn" data-tela="finalizacao">
-                            <i class="fas fa-flag-checkered"></i> Finalização
-                        </button>
-                        <button class="nav-btn" data-tela="usuarios" id="btn-usuarios" style="display: none;">
-                            <i class="fas fa-users"></i> Usuários
-                        </button>
-                    </nav>
-                    
-                    <div class="user-actions">
-                        <button class="btn-config" id="btn-config" title="Configurações">
-                            <i class="fas fa-cog"></i>
-                        </button>
-                        <button class="btn-logout" id="btn-logout" title="Sair">
-                            <i class="fas fa-sign-out-alt"></i>
-                        </button>
-                    </div>
-                </div>
+    <div id="sistema-principal" class="sistema-principal" style="display: none">
+      <header class="header">
+        <div class="container header-layout">
+          <div class="logo">
+            <div class="logo-icon-box">
+              <i class="fas fa-shopping-cart"></i>
             </div>
-            
-            <div class="status-indicator-bar">
-                <div class="container">
-                    <div class="status-indicator">
-                        <div class="status-step"><span>1</span> Solicitação</div>
-                        <div class="status-step"><span>2</span> Orçamento</div>
-                        <div class="status-step"><span>3</span> Aprovação</div>
-                        <div class="status-step"><span>4</span> Compra</div>
-                        <div class="status-step"><span>5</span> Concluído</div>
-                    </div>
-                </div>
+            <div class="user-info">
+              <h1>Sistema de Compras</h1>
+              <div class="user-details">
+                <span class="user-name" id="usuario-logado">Usuário</span>
+                <span class="user-perfil" id="perfil-logado">Perfil</span>
+              </div>
             </div>
-        </header>
+          </div>
 
-        <main class="container main-content">
-            <section id="nova-solicitacao" class="tela">
-                <div class="page-title-box">
-                    <h2><i class="fas fa-plus-circle"></i> Nova Solicitação</h2>
-                    <p class="tela-descricao">Preencha os dados da solicitação e adicione os itens necessários.</p>
-                </div>
-                
-                <form id="form-solicitacao" class="form-card-panel">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="solicitante">Solicitante *</label>
-                            <input type="text" id="solicitante" required readonly class="readonly-field">
-                            <small class="form-hint">Preenchido automaticamente com seu usuário</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="setor">Setor *</label>
-                            <div class="select-wrapper">
-                                <select id="setor" required>
-                                    <option value="">Selecione um setor</option>
-                                    <option value="administracao">Administração</option>
-                                    <option value="rh">Recursos Humanos</option>
-                                    <option value="ti">Tecnologia da Informação</option>
-                                    <option value="manutencao">Manutenção</option>
-                                    <option value="producao">Produção</option>
-                                    <option value="compras">Compras</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group full-width">
-                            <label for="justificativa">Justificativa *</label>
-                            <textarea id="justificativa" required placeholder="Descreva de forma detalhada a necessidade desta solicitação"></textarea>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="urgencia">Nível de Urgência *</label>
-                            <div class="select-wrapper">
-                                <select id="urgencia" required>
-                                    <option value="baixa">Baixa</option>
-                                    <option value="media">Média</option>
-                                    <option value="alta">Alta</option>
-                                    <option value="urgente">Urgente</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="itens-container">
-                        <div class="itens-header-box">
-                            <div>
-                                <h3><i class="fas fa-boxes"></i> Itens da Solicitação</h3>
-                                <p class="subtitulo">Adicione os produtos ou itens necessários. Cada item pode conter suas próprias fotos.</p>
-                            </div>
-                            <button type="button" id="btn-adicionar-item" class="btn-secundario">
-                                <i class="fas fa-plus"></i> Adicionar Item
-                            </button>
-                        </div>
-                        
-                        <div id="itens-lista" class="dynamic-list-wrapper"></div>
-                    </div>
-                    
-                    <div class="form-submit-row">
-                        <button type="submit" id="btn-enviar-solicitacao" class="btn-primario btn-lg">
-                            <i class="fas fa-paper-plane"></i> Enviar Solicitação
-                        </button>
-                    </div>
-                </form>
-            </section>
+          <div class="header-controls">
+            <nav class="nav" id="menu-navegacao">
+              <button class="nav-btn" data-tela="nova-solicitacao">
+                <i class="fas fa-plus-circle"></i>
+                <span class="nav-text">Nova Solicitação</span>
+              </button>
+              <button class="nav-btn" data-tela="historico">
+                <i class="fas fa-history"></i>
+                <span class="nav-text">Histórico</span>
+              </button>
+              <button class="nav-btn" data-tela="compras">
+                <i class="fas fa-file-invoice-dollar"></i>
+                <span class="nav-text">Cotações</span>
+              </button>
+              <button class="nav-btn" data-tela="aprovacao">
+                <i class="fas fa-check-circle"></i>
+                <span class="nav-text">Aprovação</span>
+              </button>
+              <button class="nav-btn" data-tela="finalizacao">
+                <i class="fas fa-flag-checkered"></i>
+                <span class="nav-text">Finalização</span>
+              </button>
+              <button
+                class="nav-btn"
+                data-tela="usuarios"
+                id="btn-usuarios"
+                style="display: none"
+              >
+                <i class="fas fa-users"></i>
+                <span class="nav-text">Usuários</span>
+              </button>
+            </nav>
 
-            <section id="historico" class="tela">
-                <div class="page-title-box">
-                    <h2><i class="fas fa-history"></i> Histórico de Solicitações</h2>
-                    <p class="tela-descricao">Acompanhe e filtre todas as solicitações cadastradas e seus andamentos.</p>
+            <div class="user-actions">
+              <button class="btn-config" id="btn-config" title="Configurações">
+                <i class="fas fa-cog"></i>
+              </button>
+              <button class="btn-logout" id="btn-logout" title="Sair">
+                <i class="fas fa-sign-out-alt"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-indicator-bar">
+          <div class="container">
+            <div class="status-indicator">
+              <div class="status-step"><span>1</span> Solicitação</div>
+              <div class="status-step"><span>2</span> Orçamento</div>
+              <div class="status-step"><span>3</span> Aprovação</div>
+              <div class="status-step"><span>4</span> Compra</div>
+              <div class="status-step"><span>5</span> Concluído</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="container main-content">
+        <section id="nova-solicitacao" class="tela">
+          <div class="page-title-box">
+            <h2><i class="fas fa-plus-circle"></i> Nova Solicitação</h2>
+            <p class="tela-descricao">
+              Preencha os dados da solicitação e adicione os itens necessários.
+            </p>
+          </div>
+
+          <form id="form-solicitacao" class="form-card-panel">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="solicitante">Solicitante *</label>
+                <input
+                  type="text"
+                  id="solicitante"
+                  required
+                  readonly
+                  class="readonly-field"
+                />
+                <small class="form-hint"
+                  >Preenchido automaticamente com seu usuário</small
+                >
+              </div>
+
+              <div class="form-group">
+                <label for="setor">Setor *</label>
+                <div class="select-wrapper">
+                  <select id="setor" required>
+                    <option value="">Selecione um setor</option>
+                    <option value="administracao">Administração</option>
+                    <option value="rh">Recursos Humanos</option>
+                    <option value="ti">Tecnologia da Informação</option>
+                    <option value="manutencao">Manutenção</option>
+                    <option value="producao">Produção</option>
+                    <option value="compras">Compras</option>
+                  </select>
                 </div>
-                
-                <div class="filtros-card">
-                    <div class="filtros-title"><i class="fas fa-filter"></i> Filtrar Registros</div>
-                    <div class="filtros-grid">
-                        <div class="form-group">
-                            <label for="filtro-status">Status</label>
-                            <div class="select-wrapper">
-                                <select id="filtro-status">
-                                    <option value="todos">Todos os Status</option>
-                                    <option value="solicitado">Apenas Solicitados</option>
-                                    <option value="cotacao">Em Cotação</option>
-                                    <option value="aprovacao">Aguardando Aprovação</option>
-                                    <option value="compra">Em Processo de Compra</option>
-                                    <option value="concluido">Concluídos</option>
-                                    <option value="rejeitado">Rejeitados</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="filtro-setor">Setor</label>
-                            <div class="select-wrapper">
-                                <select id="filtro-setor">
-                                    <option value="todos">Todos os Setores</option>
-                                    <option value="administracao">Administração</option>
-                                    <option value="rh">Recursos Humanos</option>
-                                    <option value="ti">Tecnologia da Informação</option>
-                                    <option value="manutencao">Manutenção</option>
-                                    <option value="producao">Produção</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="filtro-solicitante">Solicitante</label>
-                            <div class="select-wrapper">
-                                <select id="filtro-solicitante">
-                                    <option value="todos">Todos os Solicitantes</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
+              </div>
+
+              <div class="form-group full-width">
+                <label for="justificativa">Justificativa *</label>
+                <textarea
+                  id="justificativa"
+                  required
+                  placeholder="Descreva de forma detalhada a necessidade desta solicitação"
+                  rows="3"
+                ></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="urgencia">Nível de Urgência *</label>
+                <div class="select-wrapper">
+                  <select id="urgencia" required>
+                    <option value="baixa">Baixa</option>
+                    <option value="media" selected>Média</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="itens-container">
+              <div class="itens-header-box">
+                <div>
+                  <h3><i class="fas fa-boxes"></i> Itens da Solicitação</h3>
+                  <p class="subtitulo">
+                    Adicione os produtos ou itens necessários. Cada item pode
+                    conter suas próprias fotos.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  id="btn-adicionar-item"
+                  class="btn-secundario"
+                >
+                  <i class="fas fa-plus"></i> Adicionar Item
+                </button>
+              </div>
+
+              <div id="itens-lista" class="dynamic-list-wrapper"></div>
+            </div>
+
+            <div class="form-submit-row">
+              <button
+                type="submit"
+                id="btn-enviar-solicitacao"
+                class="btn-primario btn-lg w-100-mobile"
+              >
+                <i class="fas fa-paper-plane"></i> Enviar Solicitação
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section id="historico" class="tela">
+          <div class="page-title-box">
+            <h2><i class="fas fa-history"></i> Histórico de Solicitações</h2>
+            <p class="tela-descricao">
+              Acompanhe e filtre todas as solicitações cadastradas e seus
+              andamentos.
+            </p>
+          </div>
+
+          <div class="filtros-card">
+            <div class="filtros-title">
+              <i class="fas fa-filter"></i> Filtrar Registros
+            </div>
+            <div class="filtros-grid">
+              <div class="form-group">
+                <label for="filtro-status">Status</label>
+                <div class="select-wrapper">
+                  <select id="filtro-status">
+                    <option value="todos">Todos os Status</option>
+                    <option value="solicitado">Apenas Solicitados</option>
+                    <option value="cotacao">Em Cotação</option>
+                    <option value="aprovacao">Aguardando Aprovação</option>
+                    <option value="compra">Em Processo de Compra</option>
+                    <option value="concluido">Concluídos</option>
+                    <option value="rejeitado">Rejeitados</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="filtro-setor">Setor</label>
+                <div class="select-wrapper">
+                  <select id="filtro-setor">
+                    <option value="todos">Todos os Setores</option>
+                    <option value="administracao">Administração</option>
+                    <option value="rh">Recursos Humanos</option>
+                    <option value="ti">Tecnologia da Informação</option>
+                    <option value="manutencao">Manutenção</option>
+                    <option value="producao">Produção</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="filtro-solicitante">Solicitante</label>
+                <div class="select-wrapper">
+                  <select id="filtro-solicitante">
+                    <option value="todos">Todos os Solicitantes</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="solicitacoes-lista data-grid-layout"></div>
+        </section>
+
+        <section id="compras" class="tela">
+          <div class="page-title-box">
+            <h2>
+              <i class="fas fa-file-invoice-dollar"></i> Cotações & Orçamentos
+            </h2>
+            <p class="tela-descricao">
+              Insira as cotações obtidas junto aos fornecedores para as
+              solicitações ativas.
+            </p>
+          </div>
+
+          <div class="compras-workflow-layout">
+            <div class="workflow-column">
+              <h4 class="column-title">
+                <i class="fas fa-clock"></i> Pendentes de Cotação
+              </h4>
+              <div class="solicitacoes-orcamento dynamic-column-list"></div>
+            </div>
+
+            <div class="workflow-column">
+              <h4 class="column-title">
+                <i class="fas fa-edit"></i> Lançar Novo Orçamento
+              </h4>
+              <form
+                id="form-adicionar-orcamento"
+                class="form-card-panel sub-panel"
+              >
+                <input type="hidden" id="orcamento-solicitacao-id" />
+
+                <div class="form-group">
+                  <label for="comprador">Comprador Responsável</label>
+                  <input
+                    type="text"
+                    id="comprador"
+                    required
+                    readonly
+                    class="readonly-field"
+                  />
                 </div>
 
-                <div class="solicitacoes-lista data-grid-layout"></div>
-            </section>
+                <div class="form-group">
+                  <label for="fornecedor">Fornecedor *</label>
+                  <input
+                    type="text"
+                    id="fornecedor"
+                    required
+                    placeholder="Nome da empresa / fornecedor"
+                  />
+                </div>
 
-            <section id="compras" class="tela">
-                <div class="page-title-box">
-                    <h2><i class="fas fa-file-invoice-dollar"></i> Cotações & Orçamentos</h2>
-                    <p class="tela-descricao">Insira as cotações obtidas junto aos fornecedores para as solicitações ativas.</p>
+                <div class="form-group">
+                  <label for="valor-orcamento">Valor Total (R$) *</label>
+                  <div class="input-icon-left">
+                    <span class="input-addon">R$</span>
+                    <input
+                      type="number"
+                      id="valor-orcamento"
+                      step="0.01"
+                      required
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
-                
-                <div class="compras-workflow-layout">
-                    <div class="workflow-column">
-                        <h4 class="column-title"><i class="fas fa-clock"></i> Pendentes de Cotação</h4>
-                        <div class="solicitacoes-orcamento dynamic-column-list"></div>
-                    </div>
-                    
-                    <div class="workflow-column">
-                        <h4 class="column-title"><i class="fas fa-edit"></i> Lançar Novo Orçamento</h4>
-                        <form id="form-adicionar-orcamento" class="form-card-panel sub-panel">
-                            <input type="hidden" id="orcamento-solicitacao-id">
-                            
-                            <div class="form-group">
-                                <label for="comprador">Comprador Responsável</label>
-                                <input type="text" id="comprador" required readonly class="readonly-field">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="fornecedor">Fornecedor *</label>
-                                <input type="text" id="fornecedor" required placeholder="Nome da empresa / fornecedor">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="valor-orcamento">Valor Total (R$) *</label>
-                                <div class="input-icon-left">
-                                    <span class="input-addon">R$</span>
-                                    <input type="number" id="valor-orcamento" step="0.01" required placeholder="0,00">
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="prazo-entrega">Prazo de Entrega (Dias) *</label>
-                                <input type="number" id="prazo-entrega" required placeholder="Ex: 5">
-                            </div>
-                            
-                            <div class="form-group full-width">
-                                <label>Documentação / Anexos (PDF, Imagens)</label>
-                                <input type="file" id="anexos-input" multiple style="display: none;">
-                                <button type="button" id="btn-adicionar-anexos" class="btn-secundario w-100">
-                                    <i class="fas fa-cloud-upload-alt"></i> Escolher Arquivos
-                                </button>
-                                <div id="preview-anexos" class="preview-anexos-box"></div>
-                            </div>
-                            
-                            <div class="form-submit-row">
-                                <button type="submit" class="btn-primario w-100">
-                                    <i class="fas fa-save"></i> Registrar Orçamento
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </section>
 
-            <section id="aprovacao" class="tela">
-                <div class="page-title-box">
-                    <h2><i class="fas fa-check-circle"></i> Aprovação de Processos</h2>
-                    <p class="tela-descricao">Análise técnica e financeira de orçamentos para liberação ou rejeição.</p>
+                <div class="form-group">
+                  <label for="prazo-entrega">Prazo de Entrega (Dias) *</label>
+                  <input
+                    type="number"
+                    id="prazo-entrega"
+                    required
+                    placeholder="Ex: 5"
+                  />
                 </div>
-                <div class="solicitacoes-aprovacao data-grid-layout"></div>
-            </section>
 
-            <section id="finalizacao" class="tela">
-                <div class="page-title-box">
-                    <h2><i class="fas fa-flag-checkered"></i> Finalização de Compras</h2>
-                    <p class="tela-descricao">Pedidos autorizados prontos para faturamento e encerramento.</p>
+                <div class="form-group full-width">
+                  <label>Documentação / Anexos (PDF, Imagens)</label>
+                  <input
+                    type="file"
+                    id="anexos-input"
+                    multiple
+                    style="display: none"
+                  />
+                  <button
+                    type="button"
+                    id="btn-adicionar-anexos"
+                    class="btn-secundario w-100"
+                  >
+                    <i class="fas fa-cloud-upload-alt"></i> Escolher Arquivos
+                  </button>
+                  <div id="preview-anexos" class="preview-anexos-box"></div>
                 </div>
-                <div class="solicitacoes-finalizacao data-grid-layout"></div>
-            </section>
 
-            <section id="usuarios" class="tela">
-                <div class="page-title-box">
-                    <h2><i class="fas fa-users"></i> Controle de Usuários e Permissões</h2>
-                    <p class="tela-descricao">Cadastre colaboradores e defina escopos de acessos específicos por perfil.</p>
+                <div class="form-submit-row">
+                  <button type="submit" class="btn-primario w-100">
+                    <i class="fas fa-save"></i> Registrar Orçamento
+                  </button>
                 </div>
-                
-                <div class="usuarios-workflow-layout">
-                    <div class="workflow-column main-flex-column">
-                        <div class="column-header-row">
-                            <h4 class="column-title"><i class="fas fa-th-list"></i> Usuários Ativos</h4>
-                            <button id="btn-novo-usuario" class="btn-secundario btn-sm"><i class="fas fa-user-plus"></i> Novo</button>
-                        </div>
-                        <div class="usuarios-grid users-list-panel"></div>
-                    </div>
-                    
-                    <div class="workflow-column">
-                        <h4 class="column-title"><i class="fas fa-user-shield"></i> Ficha cadastral / Permissões</h4>
-                        <form id="form-cadastrar-usuario" class="form-card-panel sub-panel">
-                            <input type="hidden" id="usuario-id">
-                            
-                            <div class="form-group">
-                                <label for="usuario-nome">Nome Completo *</label>
-                                <input type="text" id="usuario-nome" required placeholder="Nome do colaborador">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="usuario-login">Login de Acesso *</label>
-                                <input type="text" id="usuario-login" required placeholder="Ex: login.nome">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="usuario-senha">Senha *</label>
-                                <input type="password" id="usuario-senha" required placeholder="Mínimo 6 caracteres">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="usuario-perfil">Perfil Operacional *</label>
-                                <div class="select-wrapper">
-                                    <select id="usuario-perfil" required>
-                                        <option value="">Selecione o perfil</option>
-                                        <option value="solicitante">Solicitante</option>
-                                        <option value="comprador">Comprador</option>
-                                        <option value="gestor">Gestor / Diretor</option>
-                                        <option value="administrador">Administrador Geral</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div class="permissões-checkbox-section">
-                                <p class="perm-title">Acessos Individuais Habilitados:</p>
-                                <div class="checkbox-grid">
-                                    <label class="checkbox-control">
-                                        <input type="checkbox" id="permissao-nova">
-                                        <span class="control-indicator"></span> Nova Solicitação
-                                    </label>
-                                    <label class="checkbox-control">
-                                        <input type="checkbox" id="permissao-historico" checked disabled>
-                                        <span class="control-indicator"></span> Histórico Geral
-                                    </label>
-                                    <label class="checkbox-control">
-                                        <input type="checkbox" id="permissao-compras">
-                                        <span class="control-indicator"></span> Compras/Orçamentos
-                                    </label>
-                                    <label class="checkbox-control">
-                                        <input type="checkbox" id="permissao-aprovacao">
-                                        <span class="control-indicator"></span> Módulo Aprovação
-                                    </label>
-                                    <label class="checkbox-control">
-                                        <input type="checkbox" id="permissao-finalizacao">
-                                        <span class="control-indicator"></span> Módulo Finalização
-                                    </label>
-                                    <label class="checkbox-control">
-                                        <input type="checkbox" id="permissao-usuarios">
-                                        <span class="control-indicator"></span> Painel Usuários
-                                    </label>
-                                </div>
-                            </div>
-                            
-                            <div class="form-submit-row gap-2" style="gap: 12px">
-                                <button type="button" id="btn-cancelar-edicao" class="btn-cancelar">Cancelar</button>
-                                <button type="submit" class="btn-primario flex-1"><i class="fas fa-check"></i> Salvar Usuário</button>
-                            </div>
-                        </form>
-                    </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section id="aprovacao" class="tela">
+          <div class="page-title-box">
+            <h2><i class="fas fa-check-circle"></i> Aprovação de Processos</h2>
+            <p class="tela-descricao">
+              Análise técnica e financeira de orçamentos para liberação ou
+              rejeição.
+            </p>
+          </div>
+          <div class="solicitacoes-aprovacao data-grid-layout"></div>
+        </section>
+
+        <section id="finalizacao" class="tela">
+          <div class="page-title-box">
+            <h2>
+              <i class="fas fa-flag-checkered"></i> Finalização de Compras
+            </h2>
+            <p class="tela-descricao">
+              Pedidos autorizados prontos para faturamento e encerramento.
+            </p>
+          </div>
+          <div class="solicitacoes-finalizacao data-grid-layout"></div>
+        </section>
+
+        <section id="usuarios" class="tela">
+          <div class="page-title-box">
+            <h2>
+              <i class="fas fa-users"></i> Controle de Usuários e Permissões
+            </h2>
+            <p class="tela-descricao">
+              Cadastre colaboradores e defina escopos de acessos específicos por
+              perfil.
+            </p>
+          </div>
+
+          <div class="usuarios-workflow-layout">
+            <div class="workflow-column main-flex-column">
+              <div class="column-header-row">
+                <h4 class="column-title">
+                  <i class="fas fa-th-list"></i> Usuários Ativos
+                </h4>
+                <button id="btn-novo-usuario" class="btn-secundario btn-sm">
+                  <i class="fas fa-user-plus"></i> Novo
+                </button>
+              </div>
+              <div class="usuarios-grid users-list-panel"></div>
+            </div>
+
+            <div class="workflow-column">
+              <h4 class="column-title">
+                <i class="fas fa-user-shield"></i> Ficha cadastral / Permissões
+              </h4>
+              <form
+                id="form-cadastrar-usuario"
+                class="form-card-panel sub-panel"
+              >
+                <input type="hidden" id="usuario-id" />
+
+                <div class="form-group">
+                  <label for="usuario-nome">Nome Completo *</label>
+                  <input
+                    type="text"
+                    id="usuario-nome"
+                    required
+                    placeholder="Nome do colaborador"
+                  />
                 </div>
-            </section>
-        </main>
+
+                <div class="form-group">
+                  <label for="usuario-login">Login de Acesso *</label>
+                  <input
+                    type="text"
+                    id="usuario-login"
+                    required
+                    placeholder="Ex: login.nome"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="usuario-senha">Senha *</label>
+                  <input
+                    type="password"
+                    id="usuario-senha"
+                    required
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="usuario-perfil">Perfil Operacional *</label>
+                  <div class="select-wrapper">
+                    <select id="usuario-perfil" required>
+                      <option value="">Selecione o perfil</option>
+                      <option value="solicitante">Solicitante</option>
+                      <option value="comprador">Comprador</option>
+                      <option value="gestor">Gestor / Diretor</option>
+                      <option value="administrador">Administrador Geral</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="permissões-checkbox-section">
+                  <p class="perm-title">Acessos Individuais Habilitados:</p>
+                  <div class="checkbox-grid">
+                    <label class="checkbox-control">
+                      <input type="checkbox" id="permissao-nova" />
+                      <span class="control-indicator"></span> Nova Solicitação
+                    </label>
+                    <label class="checkbox-control">
+                      <input
+                        type="checkbox"
+                        id="permissao-historico"
+                        checked
+                        disabled
+                      />
+                      <span class="control-indicator"></span> Histórico Geral
+                    </label>
+                    <label class="checkbox-control">
+                      <input type="checkbox" id="permissao-compras" />
+                      <span class="control-indicator"></span> Compras/Orçamentos
+                    </label>
+                    <label class="checkbox-control">
+                      <input type="checkbox" id="permissao-aprovacao" />
+                      <span class="control-indicator"></span> Módulo Aprovação
+                    </label>
+                    <label class="checkbox-control">
+                      <input type="checkbox" id="permissao-finalizacao" />
+                      <span class="control-indicator"></span> Módulo Finalização
+                    </label>
+                    <label class="checkbox-control">
+                      <input type="checkbox" id="permissao-usuarios" />
+                      <span class="control-indicator"></span> Painel Usuários
+                    </label>
+                  </div>
+                </div>
+
+                <div class="form-submit-row gap-2" style="gap: 12px">
+                  <button
+                    type="button"
+                    id="btn-cancelar-edicao"
+                    class="btn-cancelar"
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" class="btn-primario flex-1">
+                    <i class="fas fa-check"></i> Salvar Usuário
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
 
     <div id="modal-detalhes" class="modal">
-        <div class="modal-conteudo">
-            <div class="modal-header">
-                <h3><i class="fas fa-file-alt"></i> Detalhes da Solicitação</h3>
-                <button class="btn-fechar-modal">&times;</button>
-            </div>
-            <div class="modal-body" id="modal-detalhes-corpo"></div>
+      <div class="modal-conteudo">
+        <div class="modal-header">
+          <h3><i class="fas fa-file-alt"></i> Detalhes da Solicitação</h3>
+          <button class="btn-fechar-modal">&times;</button>
         </div>
+        <div class="modal-body" id="modal-detalhes-corpo"></div>
+      </div>
     </div>
 
     <div id="modal-aprovacao" class="modal">
-        <div class="modal-conteudo">
-            <div class="modal-header">
-                <h3><i class="fas fa-gavel"></i> Analisar Solicitação</h3>
-                <button class="btn-fechar-modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="modal-aprovacao-corpo"></div>
-                <form id="form-acao-aprovacao" class="modal-form-box">
-                    <input type="hidden" id="aprovacao-solicitacao-id">
-                    <div class="form-group">
-                        <label for="observacoes-aprovacao">Parecer / Observações *</label>
-                        <textarea id="observacoes-aprovacao" required placeholder="Justifique a aprovação ou reprovação da demanda"></textarea>
-                    </div>
-                    <div class="modal-actions-row">
-                        <button type="button" id="btn-rejeitar" class="btn-danger flex-1"><i class="fas fa-times-circle"></i> Reprovar Pedido</button>
-                        <button type="button" id="btn-aprovar-confirmar" class="btn-success flex-1"><i class="fas fa-check-circle"></i> Aprovar Pedido</button>
-                    </div>
-                </form>
-            </div>
+      <div class="modal-conteudo">
+        <div class="modal-header">
+          <h3><i class="fas fa-gavel"></i> Analisar Solicitação</h3>
+          <button class="btn-fechar-modal">&times;</button>
         </div>
+        <div class="modal-body">
+          <div id="modal-aprovacao-corpo"></div>
+          <form id="form-acao-aprovacao" class="modal-form-box">
+            <input type="hidden" id="aprovacao-solicitacao-id" />
+            <div class="form-group">
+              <label for="observacoes-aprovacao">Parecer / Observações *</label>
+              <textarea
+                id="observacoes-aprovacao"
+                required
+                placeholder="Justifique a aprovação ou reprovação da demanda"
+                rows="3"
+              ></textarea>
+            </div>
+            <div class="modal-actions-row">
+              <button type="button" id="btn-rejeitar" class="btn-danger flex-1">
+                <i class="fas fa-times-circle"></i> Reprovar Pedido
+              </button>
+              <button
+                type="button"
+                id="btn-aprovar-confirmar"
+                class="btn-success flex-1"
+              >
+                <i class="fas fa-check-circle"></i> Aprovar Pedido
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
 
     <div id="modal-finalizacao" class="modal">
-        <div class="modal-conteudo">
-            <div class="modal-header">
-                <h3><i class="fas fa-shopping-bag"></i> Concluir Processo de Compra</h3>
-                <button class="btn-fechar-modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="modal-finalizacao-corpo"></div>
-                <form id="form-acao-finalizacao" class="modal-form-box mt-3">
-                    <input type="hidden" id="finalizacao-solicitacao-id">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="orcamento-vencedor">Selecione o Fornecedor Vencedor *</label>
-                            <div class="select-wrapper">
-                                <select id="orcamento-vencedor" required>
-                                    <option value="">Escolha uma proposta...</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="valor-final">Valor Negociado Final (R$) *</label>
-                            <div class="input-icon-left">
-                                <span class="input-addon">R$</span>
-                                <input type="number" id="valor-final" step="0.01" required>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-actions-row justify-end mt-3">
-                        <button type="submit" class="btn-primario btn-lg w-100"><i class="fas fa-box-open"></i> Efetivar e Fechar Pedido</button>
-                    </div>
-                </form>
-            </div>
+      <div class="modal-conteudo">
+        <div class="modal-header">
+          <h3>
+            <i class="fas fa-shopping-bag"></i> Concluir Processo de Compra
+          </h3>
+          <button class="btn-fechar-modal">&times;</button>
         </div>
+        <div class="modal-body">
+          <div id="modal-finalizacao-corpo"></div>
+          <form id="form-acao-finalizacao" class="modal-form-box mt-3">
+            <input type="hidden" id="finalizacao-solicitacao-id" />
+            <div class="form-grid" style="margin-bottom: 0">
+              <div class="form-group">
+                <label for="orcamento-vencedor">Fornecedor Vencedor *</label>
+                <div class="select-wrapper">
+                  <select id="orcamento-vencedor" required>
+                    <option value="">Escolha uma proposta...</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="valor-final">Valor Negociado Final (R$) *</label>
+                <div class="input-icon-left">
+                  <span class="input-addon">R$</span>
+                  <input type="number" id="valor-final" step="0.01" required />
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions-row justify-end mt-3">
+              <button type="submit" class="btn-primario btn-lg w-100">
+                <i class="fas fa-box-open"></i> Efetivar e Fechar Pedido
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
 
     <div id="modal-config" class="modal">
-        <div class="modal-conteudo modal-sm">
-            <div class="modal-header">
-                <h3><i class="fas fa-user-cog"></i> Configurações da Conta</h3>
-                <button class="btn-fechar-modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="user-profile-badge">
-                    <div class="profile-avatar"><i class="fas fa-shield-alt"></i></div>
-                    <div class="profile-info">
-                        <h4 id="config-usuario">Nome do Usuário</h4>
-                        <span id="config-perfil" class="badge-perfil">Perfil</span>
-                    </div>
-                </div>
-                <p class="access-time"><strong>Último login em:</strong> <span id="config-ultimo-acesso">-</span></p>
-                
-                <div class="config-section-title">Suas Permissões Ativas</div>
-                <div id="config-permissoes" class="config-permissions-container"></div>
-                
-                <div class="config-section-title mt-4" style="margin-top: 24px;">Alterar Senha de Acesso</div>
-                <form id="form-alterar-senha" class="modal-form-box">
-                    <div class="form-group">
-                        <label for="senha-atual">Senha Atual</label>
-                        <input type="password" id="senha-atual" required placeholder="Sua senha atual">
-                    </div>
-                    <div class="form-group">
-                        <label for="nova-senha">Nova Senha</label>
-                        <input type="password" id="nova-senha" required placeholder="Mínimo 6 caracteres">
-                    </div>
-                    <div class="form-group">
-                        <label for="confirmar-senha">Confirmar Nova Senha</label>
-                        <input type="password" id="confirmar-senha" required placeholder="Repita a nova senha">
-                    </div>
-                    <button type="submit" class="btn-primario w-100 mt-2" style="margin-top: 12px;">
-                        <i class="fas fa-key"></i> Atualizar Senha
-                    </button>
-                </form>
-            </div>
+      <div class="modal-conteudo modal-sm">
+        <div class="modal-header">
+          <h3><i class="fas fa-user-cog"></i> Configurações da Conta</h3>
+          <button class="btn-fechar-modal">&times;</button>
         </div>
+        <div class="modal-body">
+          <div class="user-profile-badge">
+            <div class="profile-avatar"><i class="fas fa-shield-alt"></i></div>
+            <div class="profile-info">
+              <h4 id="config-usuario">Nome do Usuário</h4>
+              <span id="config-perfil" class="badge-perfil">Perfil</span>
+            </div>
+          </div>
+          <p class="access-time">
+            <strong>Último login em:</strong>
+            <span id="config-ultimo-acesso">-</span>
+          </p>
+
+          <div class="config-section-title">Suas Permissões Ativas</div>
+          <div
+            id="config-permissoes"
+            class="config-permissions-container"
+          ></div>
+
+          <div class="config-section-title mt-4" style="margin-top: 24px">
+            Alterar Senha de Acesso
+          </div>
+          <form id="form-alterar-senha" class="modal-form-box">
+            <div class="form-group">
+              <label for="senha-atual">Senha Atual</label>
+              <input
+                type="password"
+                id="senha-atual"
+                required
+                placeholder="Sua senha atual"
+              />
+            </div>
+            <div class="form-group">
+              <label for="nova-senha">Nova Senha</label>
+              <input
+                type="password"
+                id="nova-senha"
+                required
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+            <div class="form-group">
+              <label for="confirmar-senha">Confirmar Nova Senha</label>
+              <input
+                type="password"
+                id="confirmar-senha"
+                required
+                placeholder="Repita a nova senha"
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn-primario w-100 mt-2"
+              style="margin-top: 12px"
+            >
+              <i class="fas fa-key"></i> Atualizar Senha
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
 
     <div id="notificacoes"></div>
 
-    <script src="script.js"></script>
-</body>
+    <script type="module" src="script.js"></script>
+  </body>
 </html>
